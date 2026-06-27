@@ -18,7 +18,7 @@ record; generate and batch-export documents from your own templates; and see
 your team’s whole workload on a calendar so heavy days are obvious in advance.
 
 <sub>⚠️ “DiscoBall” is a working codename and may change — see [docs/branding.md](docs/branding.md).</sub>
-![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg) 
+![CI](https://github.com/andrewtyree/discoball/actions/workflows/ci.yml/badge.svg) 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Status: scaffold](https://img.shields.io/badge/status-scaffold%20%2F%20phase%200-orange)
 
