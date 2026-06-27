@@ -1,0 +1,41 @@
+{
+  "_comment": "Entirely fictional demo data for DiscoBall. Any resemblance to real people, organizations, or records is coincidental. The workspace is modeled as a generic 'client matters' tracker so it reads naturally for any profession.",
+  "organization": {
+    "name": "Northwind Professional Services",
+    "slug": "northwind"
+  },
+  "users": [
+    { "email": "avery.owner@example.com", "name": "Avery Quinn", "role": "OWNER" },
+    { "email": "blair.admin@example.com", "name": "Blair Okafor", "role": "ADMIN" },
+    { "email": "casey.editor@example.com", "name": "Casey Nakamura", "role": "EDITOR" },
+    { "email": "drew.viewer@example.com", "name": "Drew Patel", "role": "VIEWER" }
+  ],
+  "recordTypes": [
+    { "name": "Matter", "description": "A client engagement or case file.", "referencePrefix": "MAT" },
+    { "name": "Correspondence", "description": "Incoming/outgoing letters and notices.", "referencePrefix": "COR" },
+    { "name": "Project", "description": "An internal project with deliverables.", "referencePrefix": "PRJ" }
+  ],
+  "statuses": [
+    { "name": "Intake", "category": "OPEN", "color": "#6366f1" },
+    { "name": "In Progress", "category": "IN_PROGRESS", "color": "#0ea5e9" },
+    { "name": "Awaiting Documents", "category": "BLOCKED", "color": "#f59e0b" },
+    { "name": "Completed", "category": "CLOSED", "color": "#22c55e" }
+  ],
+  "contacts": [
+    { "type": "COUNTERPARTY", "displayName": "Acme Industries", "fullName": "Acme Industries LLC", "email": "contact@acme.example.com" },
+    { "type": "COUNTERPARTY", "displayName": "Globex Corp.", "fullName": "Globex Corporation", "email": "legal@globex.example.com" },
+    { "type": "WITNESS", "displayName": "R. Solis", "fullName": "Robin Solis", "email": "r.solis@example.com" },
+    { "type": "COLLABORATOR", "displayName": "M. Adeyemi", "fullName": "Morgan Adeyemi", "email": "m.adeyemi@example.com" },
+    { "type": "VENDOR", "displayName": "BluePrint Reprographics", "fullName": "BluePrint Reprographics Inc." }
+  ],
+  "records": [
+    { "reference": "MAT-1001", "title": "Acme onboarding review", "subjectName": "Acme Industries LLC", "recordType": "Matter", "status": "In Progress", "assigneeEmail": "casey.editor@example.com", "dueInDays": 3 },
+    { "reference": "MAT-1002", "title": "Globex contract dispute", "subjectName": "Globex Corporation", "recordType": "Matter", "status": "Awaiting Documents", "assigneeEmail": "blair.admin@example.com", "dueInDays": 1 },
+    { "reference": "MAT-1003", "title": "Initech license renewal", "subjectName": "Initech", "recordType": "Matter", "status": "Intake", "assigneeEmail": "casey.editor@example.com", "dueInDays": 9 },
+    { "reference": "COR-2001", "title": "Notice of meeting — Soylent Co.", "subjectName": "Soylent Co.", "recordType": "Correspondence", "status": "Completed", "assigneeEmail": "blair.admin@example.com", "dueInDays": -2 },
+    { "reference": "COR-2002", "title": "Records request — Umbrella Ltd.", "subjectName": "Umbrella Ltd.", "recordType": "Correspondence", "status": "In Progress", "assigneeEmail": "casey.editor@example.com", "dueInDays": 5 },
+    { "reference": "PRJ-3001", "title": "Q3 deliverables package", "subjectName": "Internal", "recordType": "Project", "status": "In Progress", "assigneeEmail": "avery.owner@example.com", "dueInDays": 14 },
+    { "reference": "PRJ-3002", "title": "Vendor audit — BluePrint", "subjectName": "BluePrint Reprographics Inc.", "recordType": "Project", "status": "Awaiting Documents", "assigneeEmail": "avery.owner@example.com", "dueInDays": 2 },
+    { "reference": "MAT-1004", "title": "Wayne Holdings intake", "subjectName": "Wayne Holdings", "recordType": "Matter", "status": "Intake", "assigneeEmail": "blair.admin@example.com", "dueInDays": 7 }
+  ]
+}

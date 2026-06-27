@@ -1,0 +1,13 @@
+group,code,description,shortLabel
+Category,GEN-CONT,General contract matter,Contract
+Category,GEN-COMP,Compliance review,Compliance
+Category,GEN-DISP,Dispute / claim,Dispute
+Category,GEN-INTK,New intake,Intake
+Category,GEN-RNWL,Renewal,Renewal
+Document,DOC-LTR,Outbound letter,Letter
+Document,DOC-RPT,Status report,Report
+Document,DOC-AGR,Agreement,Agreement
+Document,DOC-INV,Invoice,Invoice
+Priority,PRI-HIGH,High priority,High
+Priority,PRI-MED,Medium priority,Medium
+Priority,PRI-LOW,Low priority,Low
