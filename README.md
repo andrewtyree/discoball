@@ -96,8 +96,8 @@ the stack evaluation and [`docs/decisions.md`](docs/decisions.md) for the ADRs.
 # 1. Install dependencies
 npm install
 
-# 2. Start a local PostgreSQL
-docker compose up -d db
+# 2. Start PostgreSQL + the PDF render service
+docker compose up -d
 
 # 3. Configure environment
 cp .env.example .env        # the defaults match docker-compose

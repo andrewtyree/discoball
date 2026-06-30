@@ -1,7 +1,7 @@
 # Local development services for DiscoBall.
 #
-#   docker compose up -d db                 # just PostgreSQL (default)
-#   docker compose --profile pdf up -d      # also start the PDF render service
+#   docker compose up -d        # PostgreSQL + the PDF render service (default)
+#   docker compose up -d db     # just PostgreSQL
 #
 services:
   db:
@@ -22,13 +22,12 @@ services:
       timeout: 5s
       retries: 10
 
-  # Optional: headless LibreOffice for DOCX -> PDF conversion (Phase 3+).
-  # Enable with the "pdf" profile; set PDF_RENDER_URL=http://localhost:3001 in .env
+  # Headless LibreOffice/Gotenberg for DOCX -> PDF conversion. Bundled from the
+  # start (ADR-0007); the app reaches it via PDF_RENDER_URL=http://localhost:3001.
   pdf:
     image: gotenberg/gotenberg:8
     container_name: discoball-pdf
     restart: unless-stopped
-    profiles: ["pdf"]
     ports:
       - "3001:3000"
 

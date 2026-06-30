@@ -27,6 +27,9 @@ React (great admin, but two languages and less modern-web polish) and SvelteKit
 **Consequences.** PDF fidelity needs a render service (a container dependency,
 optional in early phases). App Router has a learning curve, accepted.
 
+> **Update (ADR-0007):** the render service is bundled from the start rather
+> than deferred.
+
 ---
 
 ## ADR-0002 — The domain lives in data, not code (configurable metadata)
@@ -87,6 +90,9 @@ install; user-managed templates remove the developer-in-the-loop.
 **Consequences.** A template's placeholders must be validated against its
 mapping before a batch run (implemented in `src/lib/templates/placeholders.ts`).
 
+> **Update (ADR-0007):** the LibreOffice/Gotenberg render service is included by
+> default in docker-compose from the start, not opt-in.
+
 ---
 
 ## ADR-0005 — MIT license
@@ -114,3 +120,28 @@ extra cost.
 
 **Consequences.** Every query is org-scoped; the API resolves the active
 membership/role per request.
+
+---
+
+## ADR-0007 — Bundle the PDF render service from the start
+
+**Status:** Accepted · **Date:** 2026-06 · **Refines:** ADR-0001, ADR-0004
+
+**Context.** ROADMAP open question #4 weighed bundling a headless
+LibreOffice/Gotenberg container (better PDF fidelity, an extra dependency)
+against DOCX-only early with browser print for PDF. ADR-0001 and ADR-0004 had
+treated the render service as optional in early phases.
+
+**Decision.** Include the Gotenberg service in `docker-compose.yml` by default
+(no opt-in profile) and ship a non-empty `PDF_RENDER_URL` in `.env.example`, so
+real DOCX→PDF rendering is available from a fresh clone. The generation engine
+(`src/lib/templates/engine.ts`) is still implemented in Phase 3; this decision
+concerns the infrastructure being present, not the calling code.
+
+**Why.** PDF fidelity is a headline part of the document-generation feature and
+demos better with real LibreOffice conversion than browser print. Bundling it
+now avoids a later toggle and keeps local setup a single `docker compose up -d`.
+
+**Consequences.** Local dev pulls the Gotenberg image (~hundreds of MB) and runs
+a second container. The render call is wired in Phase 3; until then the service
+idles.

@@ -295,8 +295,7 @@ defaults are assumed where noted; override any of them.
 3. **Auth.** Email/password + optional Google OAuth acceptable? Any SSO needs?
    *Assumed: email/password for the demo, Google OAuth optional.*
 4. **PDF rendering.** Bundle a headless LibreOffice/Gotenberg container (better
-   fidelity, heavier) vs. DOCX-only for v1 with browser print for PDF. *Assumed:
-   DOCX-first in early phases; add a render service in Phase 3.*
+   fidelity, heavier) vs. DOCX-only for v1 with browser print for PDF. *let's go with headless LibreOffice/Gotenberg container from the start*
 5. **Hosting target.** Vercel + Neon (cheapest path to a live demo) vs.
    self-hosted Docker. *Assumed: Vercel + Neon for the demo; Docker for local.*
 6. **External integrations.** Keep the generic CSV import + outbound webhook as
