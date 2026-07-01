@@ -12,6 +12,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { db, schema } from "./index";
+import { hashPassword } from "../lib/password";
+
+/** Shared password for every seeded demo account (printed on completion). */
+const DEMO_PASSWORD = "discoball";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const seedDir = join(here, "..", "..", "data", "seed");
@@ -62,12 +66,14 @@ async function main() {
     .values({ name: demo.organization.name, slug: demo.organization.slug })
     .returning();
 
-  // Users + memberships
+  // Users + memberships. Every demo account shares DEMO_PASSWORD so the seeded
+  // workspace is trivial to sign into.
+  const demoPasswordHash = await hashPassword(DEMO_PASSWORD);
   const usersByEmail = new Map<string, string>();
   for (const u of demo.users) {
     const [user] = await db
       .insert(schema.users)
-      .values({ email: u.email, name: u.name })
+      .values({ email: u.email, name: u.name, passwordHash: demoPasswordHash })
       .returning();
     usersByEmail.set(u.email, user.id);
     await db
@@ -151,6 +157,9 @@ async function main() {
   console.log(
     `Seed complete: org "${org.name}", ${demo.users.length} users, ` +
       `${demo.records.length} records, ${codeRows.length} codes.`,
+  );
+  console.log(
+    `\nSign in with any seeded user, e.g.  ${demo.users[0].email}  /  ${DEMO_PASSWORD}`,
   );
   process.exit(0);
 }

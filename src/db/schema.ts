@@ -146,8 +146,9 @@ export const memberships = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Auth.js adapter tables (sessions / OAuth accounts)                          */
-/* Kept minimal; see src/lib/auth.ts.                                          */
+/* Auth.js adapter tables (accounts / sessions / verification tokens)          */
+/* Column shapes match what @auth/drizzle-adapter reads/writes; see            */
+/* src/lib/auth.ts.                                                            */
 /* -------------------------------------------------------------------------- */
 
 export const accounts = pgTable(
@@ -156,12 +157,18 @@ export const accounts = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("provider_account_id").notNull(),
-    type: text("type").notNull(),
-    accessToken: text("access_token"),
-    refreshToken: text("refresh_token"),
-    expiresAt: integer("expires_at"),
+    // Keys below are deliberately snake_case to match the AdapterAccount object
+    // the Auth.js Drizzle adapter inserts when linking an OAuth account.
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
   },
   (t) => [primaryKey({ columns: [t.provider, t.providerAccountId] })],
 );
@@ -173,6 +180,18 @@ export const sessions = pgTable("sessions", {
     .references(() => users.id, { onDelete: "cascade" }),
   expires: timestamp("expires", { withTimezone: true }).notNull(),
 });
+
+/** One-time tokens for email-verification / passwordless flows. Unused by the
+ *  Credentials provider, but required by the Auth.js Drizzle adapter contract. */
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.identifier, t.token] })],
+);
 
 /* -------------------------------------------------------------------------- */
 /* Configurable metadata — what makes the app domain-neutral                   */
