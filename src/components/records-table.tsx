@@ -104,7 +104,10 @@ export function RecordsTable({
   useEffect(() => {
     const t = setTimeout(() => {
       const v = search.trim();
-      if (v !== (filter.search ?? "")) {
+      // Compare against what this component last pushed, not the filter prop:
+      // the prop lags one navigation behind, and comparing against it lets a
+      // pending debounce re-apply filters that "Clear filters" just removed.
+      if (v !== lastPushed.current) {
         lastPushed.current = v;
         apply({ search: v || undefined, page: 1 });
       }

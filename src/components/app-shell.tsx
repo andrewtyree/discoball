@@ -48,7 +48,7 @@ export function AppShell({
             type="search"
             name="search"
             placeholder="Search records…"
-            aria-label="Search records"
+            aria-label="Global record search"
             className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] py-1.5 pl-8 pr-2 text-sm"
           />
         </form>
