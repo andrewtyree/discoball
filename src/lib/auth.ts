@@ -16,6 +16,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { asc, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { db, schema } from "@/db";
@@ -122,4 +123,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     orgId: membership.orgId,
     role: membership.role,
   };
+}
+
+/** Like getSessionUser, but redirects to sign-in instead of returning null —
+ *  the guard every server action starts with. */
+export async function requireSessionUser(): Promise<SessionUser> {
+  const user = await getSessionUser();
+  if (!user) redirect("/sign-in");
+  return user;
 }

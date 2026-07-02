@@ -15,7 +15,7 @@ import { z } from "zod";
 
 import { db, schema } from "@/db";
 import { diffFields } from "@/lib/audit";
-import { getSessionUser, type SessionUser } from "@/lib/auth";
+import { requireSessionUser, type SessionUser } from "@/lib/auth";
 import { isStaleWrite } from "@/lib/records/concurrency";
 import { assertCan } from "@/lib/rbac";
 import { ymd } from "@/lib/utils";
@@ -118,12 +118,6 @@ async function validateOrgRefs(orgId: string, input: RecordInput): Promise<strin
 /* Helpers                                                                     */
 /* -------------------------------------------------------------------------- */
 
-async function requireUser(): Promise<SessionUser> {
-  const user = await getSessionUser();
-  if (!user) redirect("/sign-in");
-  return user;
-}
-
 function checkRole(user: SessionUser, permission: Parameters<typeof assertCan>[1]): string | null {
   try {
     assertCan(user.role, permission);
@@ -199,7 +193,7 @@ export async function createRecord(
   _prev: RecordFormState,
   formData: FormData,
 ): Promise<RecordFormState> {
-  const user = await requireUser();
+  const user = await requireSessionUser();
   const forbidden = checkRole(user, "record:write");
   if (forbidden) return { status: "error", message: forbidden };
 
@@ -248,7 +242,7 @@ export async function updateRecord(
   _prev: RecordFormState,
   formData: FormData,
 ): Promise<RecordFormState> {
-  const user = await requireUser();
+  const user = await requireSessionUser();
   const forbidden = checkRole(user, "record:write");
   if (forbidden) return { status: "error", message: forbidden };
 
@@ -330,7 +324,7 @@ export async function updateRecord(
 }
 
 async function setArchived(formData: FormData, archived: boolean): Promise<void> {
-  const user = await requireUser();
+  const user = await requireSessionUser();
 
   const idParse = z.string().uuid().safeParse(formData.get("id"));
   if (!idParse.success) redirect("/records");
