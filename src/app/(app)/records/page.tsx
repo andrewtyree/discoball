@@ -13,17 +13,27 @@ import { ymd } from "@/lib/utils";
 
 const STATES = ["active", "closed", "all"] as const;
 
+/** A repeated query param (?search=a&search=b) arrives as an array. */
+function first(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
 /** Records list — real, filtered, org-scoped data. Phase 2 upgrades this to a
  *  TanStack Table with server-side sort/pagination and saved views. */
 export default async function RecordsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; state?: string; archived?: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/sign-in");
 
-  const sp = await searchParams;
+  const raw = await searchParams;
+  const sp = {
+    search: first(raw.search),
+    state: first(raw.state),
+    archived: first(raw.archived),
+  };
   const filter = parseRecordFilter({
     search: sp.search?.trim() || undefined,
     state: STATES.includes(sp.state as (typeof STATES)[number]) ? sp.state : undefined,
