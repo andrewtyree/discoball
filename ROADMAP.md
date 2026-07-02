@@ -173,7 +173,7 @@ absolute numbers.
   (unauthenticated) app shell; `npm test`, `npm run typecheck`, `npm run lint`,
   and `npm run build` all pass.
 
-### Phase 1 — Data layer, auth, RBAC & core CRUD
+### Phase 1 — Data layer, auth, RBAC & core CRUD *(done)*
 
 - **Scope:** wire Drizzle to Postgres; Auth.js (email/password + optional Google
   OAuth); org/membership/role enforcement; full Record CRUD with optimistic
@@ -186,7 +186,7 @@ absolute numbers.
   change appears in the audit log.
 - **Effort:** ~2–3 weeks.
 
-### Phase 2 — Polished GUI: table, search, filtering, record detail
+### Phase 2 — Polished GUI: table, search, filtering, record detail *(done)*
 
 - **Scope:** TanStack Table with server-side sort/filter/pagination; global
   search; saved views; dynamic rendering/editing of custom fields; record-detail
