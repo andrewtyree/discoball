@@ -37,7 +37,11 @@ const SORT_COLUMNS: Record<RecordSortField, AnyColumn> = {
   updatedAt: schema.records.updatedAt,
 };
 
-function filterConditions(orgId: string, filter: RecordFilter): SQL[] {
+/** The org-scoped WHERE conditions for a validated filter. Exported so batch
+ *  generation (src/lib/templates) selects records with identical semantics.
+ *  NOTE: conditions may reference `statuses.category` — callers must join
+ *  `statuses` like `listRecords` does. */
+export function filterConditions(orgId: string, filter: RecordFilter): SQL[] {
   const conds: (SQL | undefined)[] = [eq(schema.records.orgId, orgId)];
 
   if (!filter.includeArchived) conds.push(eq(schema.records.isArchived, false));

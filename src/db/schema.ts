@@ -444,6 +444,9 @@ export const generationRuns = pgTable("generation_runs", {
   recordCount: integer("record_count").notNull().default(0),
   /** Storage key of the produced artifact (a zip for batch runs). */
   resultStorageKey: text("result_storage_key"),
+  /** Per-record soft issues (e.g. "BLK-0007: subjectName empty") — the run
+   *  still completes, but the user can see which fields merged blank. */
+  warnings: jsonb("warnings").$type<string[]>().default([]).notNull(),
   error: text("error"),
   createdById: uuid("created_by_id").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

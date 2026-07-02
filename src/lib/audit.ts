@@ -15,9 +15,18 @@ export interface AuditEntry {
   diff?: Record<string, unknown> | null;
 }
 
-/** Append an entry to the audit log. */
-export async function recordAudit(entry: AuditEntry): Promise<void> {
-  await db.insert(schema.auditLog).values({
+/** Anything that can run the audit insert — the db client or a transaction
+ *  handle, so mutations can write their audit entry atomically. */
+export type AuditExecutor = Pick<typeof db, "insert">;
+
+/** Append an entry to the audit log. Pass the enclosing transaction as
+ *  `executor` so the mutation and its audit entry commit (or roll back)
+ *  together. */
+export async function recordAudit(
+  entry: AuditEntry,
+  executor: AuditExecutor = db,
+): Promise<void> {
+  await executor.insert(schema.auditLog).values({
     orgId: entry.orgId,
     userId: entry.userId ?? null,
     entity: entry.entity,
