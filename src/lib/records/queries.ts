@@ -20,12 +20,22 @@ import {
   or,
   type SQL,
 } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm";
 
 import { db, schema } from "@/db";
-import type { RecordFilter } from "./filters";
+import type { RecordFilter, RecordSortField } from "./filters";
 
-/** Phase 1 shows one page; server-side pagination arrives with the Phase 2 table. */
-export const RECORDS_PAGE_SIZE = 100;
+/** Sortable column per RecordSortField — the SQL twin of `compareRecordsBy`. */
+const SORT_COLUMNS: Record<RecordSortField, AnyColumn> = {
+  reference: schema.records.reference,
+  title: schema.records.title,
+  type: schema.recordTypes.name,
+  status: schema.statuses.name,
+  assignee: schema.users.name,
+  openedDate: schema.records.openedDate,
+  dueDate: schema.records.dueDate,
+  updatedAt: schema.records.updatedAt,
+};
 
 function filterConditions(orgId: string, filter: RecordFilter): SQL[] {
   const conds: (SQL | undefined)[] = [eq(schema.records.orgId, orgId)];
@@ -68,6 +78,7 @@ export interface RecordListRow {
   title: string;
   subjectName: string | null;
   dueDate: Date | null;
+  updatedAt: Date;
   isArchived: boolean;
   typeName: string | null;
   statusName: string | null;
@@ -77,13 +88,34 @@ export interface RecordListRow {
   assigneeEmail: string | null;
 }
 
-/** List records for the org, filtered; returns one page plus the total count. */
+export interface RecordListPage {
+  rows: RecordListRow[];
+  total: number;
+  page: number;
+  pageCount: number;
+}
+
+/** List one page of records for the org, sorted and filtered server-side. */
 export async function listRecords(
   orgId: string,
   filter: RecordFilter,
-): Promise<{ rows: RecordListRow[]; total: number }> {
+): Promise<RecordListPage> {
   const where = and(...filterConditions(orgId, filter));
 
+  // The where clause may reference statuses.category, so the count needs the
+  // same join.
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(schema.records)
+    .leftJoin(schema.statuses, eq(schema.records.statusId, schema.statuses.id))
+    .where(where);
+
+  const pageCount = Math.max(1, Math.ceil(total / filter.pageSize));
+  // A stale link to a page past the end lands on the last page instead of
+  // showing a confusing empty table.
+  const page = Math.min(filter.page, pageCount);
+
+  const direction = filter.dir === "asc" ? asc : desc;
   const rows = await db
     .select({
       id: schema.records.id,
@@ -91,6 +123,7 @@ export async function listRecords(
       title: schema.records.title,
       subjectName: schema.records.subjectName,
       dueDate: schema.records.dueDate,
+      updatedAt: schema.records.updatedAt,
       isArchived: schema.records.isArchived,
       typeName: schema.recordTypes.name,
       statusName: schema.statuses.name,
@@ -104,18 +137,13 @@ export async function listRecords(
     .leftJoin(schema.recordTypes, eq(schema.records.recordTypeId, schema.recordTypes.id))
     .leftJoin(schema.users, eq(schema.records.assigneeId, schema.users.id))
     .where(where)
-    .orderBy(asc(schema.records.dueDate), desc(schema.records.updatedAt))
-    .limit(RECORDS_PAGE_SIZE);
+    // records.id as the final key keeps the order stable across pages when the
+    // sorted column has ties (or is entirely null).
+    .orderBy(direction(SORT_COLUMNS[filter.sort]), asc(schema.records.id))
+    .limit(filter.pageSize)
+    .offset((page - 1) * filter.pageSize);
 
-  // The where clause may reference statuses.category, so the count needs the
-  // same join.
-  const [{ total }] = await db
-    .select({ total: count() })
-    .from(schema.records)
-    .leftJoin(schema.statuses, eq(schema.records.statusId, schema.statuses.id))
-    .where(where);
-
-  return { rows, total };
+  return { rows, total, page, pageCount };
 }
 
 /** One record with its type/status/assignee resolved, scoped to the org. */
