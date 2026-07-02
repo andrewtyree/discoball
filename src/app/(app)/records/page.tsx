@@ -4,10 +4,39 @@ import { redirect } from "next/navigation";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/phase-notice";
 import { RecordsTable } from "@/components/records-table";
-import { getSessionUser } from "@/lib/auth";
+import { SavedViewsMenu, type SavedViewItem } from "@/components/saved-views-menu";
+import { getSessionUser, type SessionUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
-import { recordFilterFromSearchParams } from "@/lib/records/filters";
-import { getRecordFormOptions, listRecords } from "@/lib/records/queries";
+import {
+  recordFilterFromSearchParams,
+  recordFilterToSearchParams,
+} from "@/lib/records/filters";
+import {
+  getRecordFormOptions,
+  listRecords,
+  listSavedViews,
+} from "@/lib/records/queries";
+
+/** Re-normalize stored view params so equality against the current URL works. */
+function normalizeParams(raw: Record<string, unknown>): string {
+  const asStrings = Object.fromEntries(
+    Object.entries(raw).map(([k, v]) => [k, String(v)]),
+  );
+  const filter = recordFilterFromSearchParams(asStrings);
+  filter.page = 1;
+  return recordFilterToSearchParams(filter).toString();
+}
+
+async function savedViewItems(user: SessionUser): Promise<SavedViewItem[]> {
+  const views = await listSavedViews(user.orgId, user.id);
+  return views.map((v) => ({
+    id: v.id,
+    name: v.name,
+    isShared: v.isShared,
+    params: normalizeParams(v.filter),
+    canDelete: v.userId === user.id || (v.isShared && can(user.role, "config:write")),
+  }));
+}
 
 /** Records list — server-side sorted/filtered/paginated TanStack Table. */
 export default async function RecordsPage({
@@ -20,11 +49,13 @@ export default async function RecordsPage({
 
   const filter = recordFilterFromSearchParams(await searchParams);
 
-  const [{ rows, total, page, pageCount }, options] = await Promise.all([
+  const [{ rows, total, page, pageCount }, options, views] = await Promise.all([
     listRecords(user.orgId, filter),
     getRecordFormOptions(user.orgId),
+    savedViewItems(user),
   ]);
   const canWrite = can(user.role, "record:write");
+  const currentParams = recordFilterToSearchParams({ ...filter, page: 1 }).toString();
 
   const hasActiveFilters =
     Boolean(
@@ -73,14 +104,21 @@ export default async function RecordsPage({
           </CardDescription>
         </Card>
       ) : (
-        <RecordsTable
-          rows={rows}
-          total={total}
-          page={page}
-          pageCount={pageCount}
-          filter={filter}
-          options={options}
-        />
+        <>
+          <SavedViewsMenu
+            views={views}
+            currentParams={currentParams}
+            canShare={canWrite}
+          />
+          <RecordsTable
+            rows={rows}
+            total={total}
+            page={page}
+            pageCount={pageCount}
+            filter={filter}
+            options={options}
+          />
+        </>
       )}
     </>
   );

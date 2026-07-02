@@ -193,6 +193,21 @@ export async function getRecordFormOptions(orgId: string) {
 
 export type RecordFormOptions = Awaited<ReturnType<typeof getRecordFormOptions>>;
 
+/** Saved record-list views visible to this user: their own plus org-shared. */
+export async function listSavedViews(orgId: string, userId: string) {
+  return db
+    .select()
+    .from(schema.savedViews)
+    .where(
+      and(
+        eq(schema.savedViews.orgId, orgId),
+        eq(schema.savedViews.entity, "records"),
+        or(eq(schema.savedViews.userId, userId), eq(schema.savedViews.isShared, true)),
+      ),
+    )
+    .orderBy(asc(schema.savedViews.isShared), asc(schema.savedViews.name));
+}
+
 /** Latest audit entries for one record (who did what, most recent first). */
 export async function listRecordActivity(orgId: string, recordId: string, limit = 10) {
   return db
