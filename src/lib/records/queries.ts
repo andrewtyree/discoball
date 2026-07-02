@@ -231,6 +231,77 @@ export async function listSavedViews(orgId: string, userId: string) {
     .orderBy(asc(schema.savedViews.isShared), asc(schema.savedViews.name));
 }
 
+/** Documents tracked on one record, newest first. */
+export async function listRecordDocuments(orgId: string, recordId: string) {
+  return db
+    .select()
+    .from(schema.documents)
+    .where(and(eq(schema.documents.orgId, orgId), eq(schema.documents.recordId, recordId)))
+    .orderBy(desc(schema.documents.createdAt));
+}
+
+/** Contacts linked to one record (with their role on the record). */
+export async function listRecordContacts(orgId: string, recordId: string) {
+  return db
+    .select({
+      contactId: schema.contacts.id,
+      role: schema.recordContacts.role,
+      displayName: schema.contacts.displayName,
+      type: schema.contacts.type,
+      organization: schema.contacts.organization,
+      email: schema.contacts.email,
+      phone: schema.contacts.phone,
+    })
+    .from(schema.recordContacts)
+    .innerJoin(schema.contacts, eq(schema.recordContacts.contactId, schema.contacts.id))
+    .where(
+      and(
+        eq(schema.recordContacts.recordId, recordId),
+        // Belt-and-braces: the join must not leak another org's contact even
+        // if a link row were forged.
+        eq(schema.contacts.orgId, orgId),
+      ),
+    )
+    .orderBy(asc(schema.contacts.displayName));
+}
+
+/** Codes applied to one record. */
+export async function listRecordCodes(orgId: string, recordId: string) {
+  return db
+    .select({
+      id: schema.recordCodes.id,
+      rawText: schema.recordCodes.rawText,
+      code: schema.codes.code,
+      shortLabel: schema.codes.shortLabel,
+      description: schema.codes.description,
+    })
+    .from(schema.recordCodes)
+    .leftJoin(
+      schema.codes,
+      and(eq(schema.recordCodes.codeId, schema.codes.id), eq(schema.codes.orgId, orgId)),
+    )
+    .innerJoin(
+      schema.records,
+      and(eq(schema.recordCodes.recordId, schema.records.id), eq(schema.records.orgId, orgId)),
+    )
+    .where(eq(schema.recordCodes.recordId, recordId))
+    .orderBy(asc(schema.codes.code));
+}
+
+/** The org's active code vocabulary, for the assign dropdown. */
+export async function listAvailableCodes(orgId: string) {
+  return db
+    .select({
+      id: schema.codes.id,
+      code: schema.codes.code,
+      shortLabel: schema.codes.shortLabel,
+      groupName: schema.codes.groupName,
+    })
+    .from(schema.codes)
+    .where(and(eq(schema.codes.orgId, orgId), eq(schema.codes.isActive, true)))
+    .orderBy(asc(schema.codes.groupName), asc(schema.codes.code));
+}
+
 /** Latest audit entries for one record (who did what, most recent first). */
 export async function listRecordActivity(orgId: string, recordId: string, limit = 10) {
   return db

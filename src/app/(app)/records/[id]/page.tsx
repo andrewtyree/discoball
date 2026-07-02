@@ -1,34 +1,46 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { PageHeader, PhaseNotice } from "@/components/phase-notice";
+import { PageHeader } from "@/components/phase-notice";
 import { RecordForm } from "@/components/record-form";
+import { ActivityPanel } from "@/components/record-detail/activity-panel";
+import { CodesPanel } from "@/components/record-detail/codes-panel";
+import { ContactsPanel } from "@/components/record-detail/contacts-panel";
+import { DocumentsPanel } from "@/components/record-detail/documents-panel";
 import { getSessionUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { archiveRecord, unarchiveRecord, updateRecord } from "@/lib/records/actions";
 import {
   getRecordDetail,
   getRecordFormOptions,
+  listAvailableCodes,
   listRecordActivity,
+  listRecordCodes,
+  listRecordContacts,
+  listRecordDocuments,
 } from "@/lib/records/queries";
-import { ymd } from "@/lib/utils";
+import { cn, ymd } from "@/lib/utils";
 
-/** Deterministic server-rendered timestamp (no locale surprises). */
-function fmtAt(d: Date): string {
-  return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
-}
+const TABS = ["overview", "documents", "contacts", "codes", "activity"] as const;
+type Tab = (typeof TABS)[number];
 
-/** Record detail: edit with optimistic concurrency, archive/restore, and the
- *  record's recent audit activity. Documents/contacts/codes tabs are Phase 2. */
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid: "That change wasn’t valid — check the fields and try again.",
+  duplicate: "That item is already on this record.",
+};
+
+/** Record detail: tabbed working surface — overview (edit form), documents,
+ *  contacts, codes, and the full audit timeline. */
 export default async function RecordDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{ tab?: string; saved?: string; ok?: string; error?: string }>;
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/sign-in");
@@ -39,14 +51,28 @@ export default async function RecordDetailPage({
   const record = await getRecordDetail(user.orgId, id);
   if (!record) notFound();
 
-  const [options, activity] = await Promise.all([
+  const sp = await searchParams;
+  const tab: Tab = TABS.includes(sp.tab as Tab) ? (sp.tab as Tab) : "overview";
+
+  const [options, documents, contacts, codes, availableCodes, activity] = await Promise.all([
     getRecordFormOptions(user.orgId),
-    listRecordActivity(user.orgId, id),
+    listRecordDocuments(user.orgId, id),
+    listRecordContacts(user.orgId, id),
+    listRecordCodes(user.orgId, id),
+    listAvailableCodes(user.orgId),
+    listRecordActivity(user.orgId, id, 200),
   ]);
 
-  const sp = await searchParams;
   const canWrite = can(user.role, "record:write");
   const canDelete = can(user.role, "record:delete");
+
+  const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: "overview", label: "Overview" },
+    { key: "documents", label: "Documents", count: documents.length },
+    { key: "contacts", label: "Contacts", count: contacts.length },
+    { key: "codes", label: "Codes", count: codes.length },
+    { key: "activity", label: "Activity" },
+  ];
 
   return (
     <>
@@ -55,7 +81,7 @@ export default async function RecordDetailPage({
         subtitle={[record.reference, record.recordType?.name].filter(Boolean).join(" · ") || undefined}
       />
 
-      {sp.saved ? (
+      {sp.saved || sp.ok ? (
         <p
           role="status"
           className="mb-4 rounded-[var(--radius)] border border-green-600/40 bg-green-600/10 px-3 py-2 text-sm text-green-700"
@@ -70,6 +96,13 @@ export default async function RecordDetailPage({
         >
           Your role ({user.role}) doesn’t have permission to do that.
         </p>
+      ) : sp.error && ERROR_MESSAGES[sp.error] ? (
+        <p
+          role="alert"
+          className="mb-4 rounded-[var(--radius)] border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-600"
+        >
+          {ERROR_MESSAGES[sp.error]}
+        </p>
       ) : null}
       {record.isArchived ? (
         <p className="mb-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-sm text-[var(--muted-foreground)]">
@@ -78,8 +111,34 @@ export default async function RecordDetailPage({
         </p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-6">
+      <nav aria-label="Record sections" className="mb-6 border-b border-[var(--border)]">
+        <ul className="flex flex-wrap gap-1">
+          {tabs.map((t) => (
+            <li key={t.key}>
+              <Link
+                href={t.key === "overview" ? `/records/${id}` : `/records/${id}?tab=${t.key}`}
+                aria-current={tab === t.key ? "page" : undefined}
+                className={cn(
+                  "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm",
+                  tab === t.key
+                    ? "border-[var(--primary)] font-medium"
+                    : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
+                )}
+              >
+                {t.label}
+                {t.count !== undefined ? (
+                  <span className="rounded-full bg-[var(--muted)] px-1.5 text-xs tabular-nums">
+                    {t.count}
+                  </span>
+                ) : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      {tab === "overview" ? (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <Card>
             <CardTitle className="mb-4">Details</CardTitle>
             <RecordForm
@@ -103,85 +162,102 @@ export default async function RecordDetailPage({
             />
           </Card>
 
-          {canDelete ? (
+          <div className="flex flex-col gap-6">
             <Card>
-              {record.isArchived ? (
-                <>
-                  <CardTitle>Restore</CardTitle>
-                  <CardDescription className="mb-3">
-                    Bring this record back into active lists and searches.
-                  </CardDescription>
-                  <form action={unarchiveRecord}>
-                    <input type="hidden" name="id" value={record.id} />
-                    <Button type="submit" variant="outline">
-                      Restore record
-                    </Button>
-                  </form>
-                </>
-              ) : (
-                <>
-                  <CardTitle>Archive</CardTitle>
-                  <CardDescription className="mb-3">
-                    Soft-delete: hidden from lists by default, restorable any time.
-                  </CardDescription>
-                  <form action={archiveRecord} className="flex flex-wrap items-end gap-3">
-                    <input type="hidden" name="id" value={record.id} />
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="archive-reason">Reason (optional)</Label>
-                      <Input
-                        id="archive-reason"
-                        name="reason"
-                        maxLength={500}
-                        placeholder="e.g. duplicate, resolved off-system"
-                        className="w-72"
+              <CardTitle className="mb-3">At a glance</CardTitle>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                <dt className="text-[var(--muted-foreground)]">Status</dt>
+                <dd>
+                  {record.status ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        aria-hidden
+                        className="inline-block size-2 rounded-full"
+                        style={{ backgroundColor: record.status.color }}
                       />
-                    </div>
-                    <Button type="submit" variant="outline">
-                      Archive record
-                    </Button>
-                  </form>
-                </>
-              )}
+                      {record.status.name}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </dd>
+                <dt className="text-[var(--muted-foreground)]">Assignee</dt>
+                <dd>{record.assignee?.name ?? record.assignee?.email ?? "Unassigned"}</dd>
+                <dt className="text-[var(--muted-foreground)]">Due</dt>
+                <dd className="font-mono text-xs leading-5">
+                  {record.dueDate ? ymd(record.dueDate) : "—"}
+                </dd>
+                <dt className="text-[var(--muted-foreground)]">Version</dt>
+                <dd className="tabular-nums">{record.version}</dd>
+                <dt className="text-[var(--muted-foreground)]">Updated</dt>
+                <dd className="font-mono text-xs leading-5">{ymd(record.updatedAt)}</dd>
+                <dt className="text-[var(--muted-foreground)]">Created</dt>
+                <dd className="font-mono text-xs leading-5">{ymd(record.createdAt)}</dd>
+              </dl>
             </Card>
-          ) : null}
-        </div>
 
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardTitle className="mb-1">Recent activity</CardTitle>
-            <CardDescription className="mb-3">
-              From the append-only audit log. Version {record.version}.
-            </CardDescription>
-            {activity.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">No activity recorded yet.</p>
-            ) : (
-              <ul className="flex flex-col gap-3 text-sm">
-                {activity.map((a) => (
-                  <li key={a.id} className="border-l-2 border-[var(--border)] pl-3">
-                    <div>
-                      <span className="font-medium">{a.userName ?? a.userEmail ?? "System"}</span>{" "}
-                      <span className="text-[var(--muted-foreground)]">{a.action}d this record</span>
-                    </div>
-                    {a.diff && Object.keys(a.diff).length > 0 ? (
-                      <div className="text-xs text-[var(--muted-foreground)]">
-                        {a.action === "archive"
-                          ? String((a.diff as { reason?: unknown }).reason ?? "")
-                          : `changed: ${Object.keys(a.diff).join(", ")}`}
+            {canDelete ? (
+              <Card>
+                {record.isArchived ? (
+                  <>
+                    <CardTitle>Restore</CardTitle>
+                    <CardDescription className="mb-3">
+                      Bring this record back into active lists and searches.
+                    </CardDescription>
+                    <form action={unarchiveRecord}>
+                      <input type="hidden" name="id" value={record.id} />
+                      <Button type="submit" variant="outline">
+                        Restore record
+                      </Button>
+                    </form>
+                  </>
+                ) : (
+                  <>
+                    <CardTitle>Archive</CardTitle>
+                    <CardDescription className="mb-3">
+                      Soft-delete: hidden from lists by default, restorable any time.
+                    </CardDescription>
+                    <form action={archiveRecord} className="flex flex-wrap items-end gap-3">
+                      <input type="hidden" name="id" value={record.id} />
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="archive-reason">Reason (optional)</Label>
+                        <Input
+                          id="archive-reason"
+                          name="reason"
+                          maxLength={500}
+                          placeholder="e.g. duplicate, resolved off-system"
+                          className="w-72"
+                        />
                       </div>
-                    ) : null}
-                    <div className="text-xs text-[var(--muted-foreground)]">{fmtAt(a.at)}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <PhaseNotice phase="Record detail — Phase 2">
-            Custom-field editing, documents, contacts, codes, and the full audit
-            timeline land with the Phase 2 detail tabs.
-          </PhaseNotice>
+                      <Button type="submit" variant="outline">
+                        Archive record
+                      </Button>
+                    </form>
+                  </>
+                )}
+              </Card>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : tab === "documents" ? (
+        <DocumentsPanel recordId={id} documents={documents} canWrite={canWrite} />
+      ) : tab === "contacts" ? (
+        <ContactsPanel
+          recordId={id}
+          linked={contacts}
+          available={options.contacts}
+          canWrite={canWrite}
+        />
+      ) : tab === "codes" ? (
+        <CodesPanel
+          recordId={id}
+          applied={codes}
+          available={availableCodes}
+          canWrite={canWrite}
+        />
+      ) : (
+        <ActivityPanel activity={activity} version={record.version} />
+      )}
     </>
   );
 }
