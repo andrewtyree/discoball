@@ -22,6 +22,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -336,7 +337,17 @@ export const records = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("records_org_reference_uq").on(t.orgId, t.reference)],
+  (t) => [
+    uniqueIndex("records_org_reference_uq").on(t.orgId, t.reference),
+    // The list query always filters by org and usually by archived state, then
+    // sorts — most often by due date or recency. These keep the table under
+    // the Phase 2 latency target on thousands of rows.
+    index("records_org_archived_idx").on(t.orgId, t.isArchived),
+    index("records_org_due_idx").on(t.orgId, t.dueDate),
+    index("records_org_updated_idx").on(t.orgId, t.updatedAt),
+    index("records_org_status_idx").on(t.orgId, t.statusId),
+    index("records_org_assignee_idx").on(t.orgId, t.assigneeId),
+  ],
 );
 
 /** Link records to contacts with a role (e.g. the counterparty, the witness). */
@@ -469,21 +480,26 @@ export const events = pgTable("events", {
 
 /** Append-only audit trail — real runtime who-did-what-when, for compliance
  *  and debugging. */
-export const auditLog = pgTable("audit_log", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").references(() => users.id),
-  entity: text("entity").notNull(),
-  entityId: uuid("entity_id"),
-  action: text("action").notNull(),
-  /** Snapshot of changed fields (before/after). */
-  diff: jsonb("diff").$type<Record<string, unknown>>(),
-  at: timestamp("at", { withTimezone: true })
-    .default(sql`now()`)
-    .notNull(),
-});
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id),
+    entity: text("entity").notNull(),
+    entityId: uuid("entity_id"),
+    action: text("action").notNull(),
+    /** Snapshot of changed fields (before/after). */
+    diff: jsonb("diff").$type<Record<string, unknown>>(),
+    at: timestamp("at", { withTimezone: true })
+      .default(sql`now()`)
+      .notNull(),
+  },
+  // The per-record activity timeline reads newest-first for one entity.
+  (t) => [index("audit_entity_at_idx").on(t.orgId, t.entity, t.entityId, t.at)],
+);
 
 /** Saved filters/searches, optionally shared with the org. */
 export const savedViews = pgTable("saved_views", {
