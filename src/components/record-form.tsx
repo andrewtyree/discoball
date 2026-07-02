@@ -1,10 +1,15 @@
 "use client";
 /**
  * Create/edit form for a record, including the optimistic-concurrency conflict
- * prompt: when a save is rejected as stale, the user's typed values stay in
- * the (uncontrolled) inputs, the other writer's values are shown alongside,
- * and the hidden version field is advanced so "Save again" knowingly
- * overwrites — or "Reload" discards the local edits.
+ * prompt: when a save is rejected as stale, the user's typed values are kept,
+ * the other writer's values are shown alongside, and the hidden version field
+ * is advanced so "Save again" knowingly overwrites — or "Reload" discards the
+ * local edits.
+ *
+ * React resets uncontrolled form fields to their defaultValue after an action
+ * completes, so a failed save echoes the submitted values back through action
+ * state (state.values) and this form renders them as the defaults — otherwise
+ * the reset would silently discard the user's in-progress edits.
  */
 import { useActionState } from "react";
 
@@ -48,6 +53,11 @@ export function RecordForm({
 
   const conflict = state.status === "conflict" ? state : null;
   const expectedVersion = conflict?.freshVersion ?? record?.version;
+
+  // After a failed save, prefer what the user just typed over the stored row.
+  const echoed = state.status === "error" || state.status === "conflict" ? state.values : undefined;
+  const v = (field: keyof RecordFormValues): string | undefined =>
+    echoed?.[field] ?? (record ? record[field] : undefined)?.toString();
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -101,7 +111,7 @@ export function RecordForm({
             name="title"
             required
             maxLength={300}
-            defaultValue={record?.title}
+            defaultValue={v("title")}
             disabled={readOnly}
           />
         </Field>
@@ -112,7 +122,7 @@ export function RecordForm({
             name="reference"
             maxLength={100}
             placeholder="e.g. MAT-2026-0042"
-            defaultValue={record?.reference}
+            defaultValue={v("reference")}
             disabled={readOnly}
           />
         </Field>
@@ -123,7 +133,7 @@ export function RecordForm({
             name="subjectName"
             maxLength={300}
             placeholder="Primary party or subject"
-            defaultValue={record?.subjectName}
+            defaultValue={v("subjectName")}
             disabled={readOnly}
           />
         </Field>
@@ -133,7 +143,7 @@ export function RecordForm({
             id="rec-type"
             name="recordTypeId"
             required
-            defaultValue={record?.recordTypeId ?? ""}
+            defaultValue={v("recordTypeId") ?? ""}
             disabled={readOnly}
           >
             <option value="" disabled>
@@ -151,7 +161,7 @@ export function RecordForm({
           <Select
             id="rec-status"
             name="statusId"
-            defaultValue={record?.statusId ?? ""}
+            defaultValue={v("statusId") ?? ""}
             disabled={readOnly}
           >
             <option value="">No status</option>
@@ -168,7 +178,7 @@ export function RecordForm({
           <Select
             id="rec-assignee"
             name="assigneeId"
-            defaultValue={record?.assigneeId ?? ""}
+            defaultValue={v("assigneeId") ?? ""}
             disabled={readOnly}
           >
             <option value="">Unassigned</option>
@@ -185,7 +195,7 @@ export function RecordForm({
             id="rec-opened"
             name="openedDate"
             type="date"
-            defaultValue={record?.openedDate}
+            defaultValue={v("openedDate")}
             disabled={readOnly}
           />
         </Field>
@@ -195,7 +205,7 @@ export function RecordForm({
             id="rec-due"
             name="dueDate"
             type="date"
-            defaultValue={record?.dueDate}
+            defaultValue={v("dueDate")}
             disabled={readOnly}
           />
         </Field>

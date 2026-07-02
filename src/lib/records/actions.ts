@@ -24,9 +24,17 @@ import { ymd } from "@/lib/utils";
 /* Form state (returned to useActionState in the record form)                  */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The user's submitted values, echoed back verbatim on error/conflict. React
+ * resets uncontrolled form fields to their defaultValue after an action
+ * completes, so the form re-renders these as the defaults — otherwise the
+ * user's in-progress edits would be silently discarded on a failed save.
+ */
+export type RecordFormEcho = Record<string, string>;
+
 export type RecordFormState =
   | { status: "idle" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; values?: RecordFormEcho }
   | {
       status: "conflict";
       message: string;
@@ -34,6 +42,7 @@ export type RecordFormState =
       freshVersion: number;
       /** The other writer's values, for side-by-side comparison in the banner. */
       theirs: { label: string; value: string }[];
+      values: RecordFormEcho;
     };
 
 /* -------------------------------------------------------------------------- */
@@ -61,6 +70,27 @@ const recordInputSchema = z.object({
 });
 
 type RecordInput = z.infer<typeof recordInputSchema>;
+
+const ECHO_FIELDS = [
+  "title",
+  "reference",
+  "subjectName",
+  "recordTypeId",
+  "statusId",
+  "assigneeId",
+  "openedDate",
+  "dueDate",
+] as const;
+
+/** What the user typed, form-shaped, for re-rendering after a failed save. */
+function echoValues(formData: FormData): RecordFormEcho {
+  const echo: RecordFormEcho = {};
+  for (const field of ECHO_FIELDS) {
+    const v = formData.get(field);
+    if (typeof v === "string") echo[field] = v;
+  }
+  return echo;
+}
 
 function parseRecordInput(formData: FormData): RecordInput | { error: string } {
   const parsed = recordInputSchema.safeParse({
@@ -193,15 +223,16 @@ export async function createRecord(
   _prev: RecordFormState,
   formData: FormData,
 ): Promise<RecordFormState> {
+  const echo = echoValues(formData);
   const user = await requireSessionUser();
   const forbidden = checkRole(user, "record:write");
-  if (forbidden) return { status: "error", message: forbidden };
+  if (forbidden) return { status: "error", message: forbidden, values: echo };
 
   const input = parseRecordInput(formData);
-  if ("error" in input) return { status: "error", message: input.error };
+  if ("error" in input) return { status: "error", message: input.error, values: echo };
 
   const refError = await validateOrgRefs(user.orgId, input);
-  if (refError) return { status: "error", message: refError };
+  if (refError) return { status: "error", message: refError, values: echo };
 
   let createdId: string;
   try {
@@ -229,7 +260,7 @@ export async function createRecord(
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return { status: "error", message: DUPLICATE_REFERENCE_MESSAGE };
+      return { status: "error", message: DUPLICATE_REFERENCE_MESSAGE, values: echo };
     }
     throw err;
   }
@@ -242,33 +273,34 @@ export async function updateRecord(
   _prev: RecordFormState,
   formData: FormData,
 ): Promise<RecordFormState> {
+  const echo = echoValues(formData);
   const user = await requireSessionUser();
   const forbidden = checkRole(user, "record:write");
-  if (forbidden) return { status: "error", message: forbidden };
+  if (forbidden) return { status: "error", message: forbidden, values: echo };
 
   const idParse = z.string().uuid().safeParse(formData.get("id"));
   const versionParse = z.coerce.number().int().positive().safeParse(formData.get("expectedVersion"));
   if (!idParse.success || !versionParse.success) {
-    return { status: "error", message: "Invalid form submission." };
+    return { status: "error", message: "Invalid form submission.", values: echo };
   }
   const id = idParse.data;
   const expectedVersion = versionParse.data;
 
   const input = parseRecordInput(formData);
-  if ("error" in input) return { status: "error", message: input.error };
+  if ("error" in input) return { status: "error", message: input.error, values: echo };
 
   const refError = await validateOrgRefs(user.orgId, input);
-  if (refError) return { status: "error", message: refError };
+  if (refError) return { status: "error", message: refError, values: echo };
 
   const before = await db.query.records.findFirst({
     where: and(eq(schema.records.id, id), eq(schema.records.orgId, user.orgId)),
   });
-  if (!before) return { status: "error", message: "Record not found." };
+  if (!before) return { status: "error", message: "Record not found.", values: echo };
 
   if (isStaleWrite(before.version, expectedVersion)) {
     const conflict = await conflictSnapshot(user.orgId, id);
-    if (!conflict) return { status: "error", message: "Record not found." };
-    return { status: "conflict", message: CONFLICT_MESSAGE, ...conflict };
+    if (!conflict) return { status: "error", message: "Record not found.", values: echo };
+    return { status: "conflict", message: CONFLICT_MESSAGE, values: echo, ...conflict };
   }
 
   try {
@@ -308,12 +340,12 @@ export async function updateRecord(
     if (!updated) {
       // Raced between our read and the guarded UPDATE — same conflict, later.
       const conflict = await conflictSnapshot(user.orgId, id);
-      if (!conflict) return { status: "error", message: "Record not found." };
-      return { status: "conflict", message: CONFLICT_MESSAGE, ...conflict };
+      if (!conflict) return { status: "error", message: "Record not found.", values: echo };
+      return { status: "conflict", message: CONFLICT_MESSAGE, values: echo, ...conflict };
     }
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return { status: "error", message: DUPLICATE_REFERENCE_MESSAGE };
+      return { status: "error", message: DUPLICATE_REFERENCE_MESSAGE, values: echo };
     }
     throw err;
   }
