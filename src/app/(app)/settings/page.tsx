@@ -19,10 +19,14 @@ const EDITORS = [
     title: "Statuses",
     body: "User-defined workflow statuses with open/closed classes.",
   },
+  {
+    href: "/settings/codes",
+    title: "Codes",
+    body: "A controlled vocabulary for labeling records.",
+  },
 ];
 
 const UPCOMING = [
-  { title: "Codes & tags", body: "A controlled vocabulary for labeling records (Phase 2)." },
   { title: "Members & roles", body: "Invite users; assign Owner/Admin/Editor/Viewer (next increment)." },
   { title: "Organization", body: "Branding, defaults, and integration settings (later phase)." },
 ];

@@ -390,3 +390,106 @@ export async function deleteCustomField(formData: FormData): Promise<void> {
   revalidatePath(FIELDS_PATH);
   redirect(FIELDS_PATH);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Codes                                                                       */
+/* -------------------------------------------------------------------------- */
+
+const CODES_PATH = "/settings/codes";
+
+const codeSchema = z.object({
+  code: z.string().trim().min(1).max(50),
+  shortLabel: z.string().trim().min(1).max(120),
+  groupName: z
+    .string()
+    .trim()
+    .max(80)
+    .transform((v) => v || null),
+  description: z
+    .string()
+    .trim()
+    .max(500)
+    .transform((v) => v || null),
+});
+
+export async function createCode(formData: FormData): Promise<void> {
+  const user = await requireConfigUser(CODES_PATH);
+
+  const parsed = codeSchema.safeParse({
+    code: formData.get("code") ?? "",
+    shortLabel: formData.get("shortLabel") ?? "",
+    groupName: formData.get("groupName") ?? "",
+    description: formData.get("description") ?? "",
+  });
+  if (!parsed.success) redirect(`${CODES_PATH}?error=invalid`);
+
+  let duplicate = false;
+  try {
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(schema.codes)
+        .values({ orgId: user.orgId, ...parsed.data })
+        .returning({ id: schema.codes.id });
+      await audit(tx, user, "code", row.id, "create", { code: parsed.data.code });
+    });
+  } catch (err) {
+    if (isPgError(err, UNIQUE_VIOLATION)) duplicate = true;
+    else throw err;
+  }
+  if (duplicate) redirect(`${CODES_PATH}?error=duplicate`);
+
+  revalidatePath(CODES_PATH);
+  redirect(`${CODES_PATH}?ok=1`);
+}
+
+export async function toggleCodeActive(formData: FormData): Promise<void> {
+  const user = await requireConfigUser(CODES_PATH);
+
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) redirect(`${CODES_PATH}?error=invalid`);
+
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ isActive: schema.codes.isActive, code: schema.codes.code })
+      .from(schema.codes)
+      .where(and(eq(schema.codes.id, id.data), eq(schema.codes.orgId, user.orgId)));
+    if (!current) return;
+
+    await tx
+      .update(schema.codes)
+      .set({ isActive: !current.isActive })
+      .where(eq(schema.codes.id, id.data));
+    await audit(tx, user, "code", id.data, current.isActive ? "deactivate" : "activate", {
+      code: current.code,
+    });
+  });
+
+  revalidatePath(CODES_PATH);
+  redirect(CODES_PATH);
+}
+
+export async function deleteCode(formData: FormData): Promise<void> {
+  const user = await requireConfigUser(CODES_PATH);
+
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) redirect(`${CODES_PATH}?error=invalid`);
+
+  const [{ inUse }] = await db
+    .select({ inUse: count() })
+    .from(schema.recordCodes)
+    .where(eq(schema.recordCodes.codeId, id.data));
+  if (inUse > 0) redirect(`${CODES_PATH}?error=in-use`);
+
+  await db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(schema.codes)
+      .where(and(eq(schema.codes.id, id.data), eq(schema.codes.orgId, user.orgId)))
+      .returning({ code: schema.codes.code });
+    if (deleted.length > 0) {
+      await audit(tx, user, "code", id.data, "delete", { code: deleted[0].code });
+    }
+  });
+
+  revalidatePath(CODES_PATH);
+  redirect(CODES_PATH);
+}

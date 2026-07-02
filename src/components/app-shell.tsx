@@ -4,8 +4,10 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  Search,
   Settings,
   Table,
+  Users,
 } from "lucide-react";
 
 import { signOut, type SessionUser } from "@/lib/auth";
@@ -13,6 +15,7 @@ import { signOut, type SessionUser } from "@/lib/auth";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/records", label: "Records", icon: Table },
+  { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/templates", label: "Templates", icon: FileText },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -33,6 +36,22 @@ export function AppShell({
           <span aria-hidden className="text-xl">🪩</span>
           <span className="font-semibold">DiscoBall</span>
         </Link>
+        {/* Global search: a plain GET form, so it works from any page with no
+            client JS — it lands on the records list with the query applied. */}
+        <form action="/records" method="get" role="search" className="relative mb-3">
+          <Search
+            size={14}
+            aria-hidden
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+          />
+          <input
+            type="search"
+            name="search"
+            placeholder="Search records…"
+            aria-label="Search records"
+            className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] py-1.5 pl-8 pr-2 text-sm"
+          />
+        </form>
         <nav className="flex flex-col gap-1">
           {NAV.map(({ href, label, icon: Icon }) => (
             <Link

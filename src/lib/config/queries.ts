@@ -52,6 +52,25 @@ export async function listStatuses(orgId: string) {
   return statuses.map((s) => ({ ...s, recordCount: counts.get(s.id) ?? 0 }));
 }
 
+export async function listCodes(orgId: string) {
+  const [codes, usage] = await Promise.all([
+    db
+      .select()
+      .from(schema.codes)
+      .where(eq(schema.codes.orgId, orgId))
+      .orderBy(asc(schema.codes.groupName), asc(schema.codes.code)),
+    db
+      .select({ codeId: schema.recordCodes.codeId, n: count() })
+      .from(schema.recordCodes)
+      .innerJoin(schema.codes, eq(schema.recordCodes.codeId, schema.codes.id))
+      .where(eq(schema.codes.orgId, orgId))
+      .groupBy(schema.recordCodes.codeId),
+  ]);
+
+  const counts = new Map(usage.map((u) => [u.codeId, u.n]));
+  return codes.map((c) => ({ ...c, recordCount: counts.get(c.id) ?? 0 }));
+}
+
 export async function listCustomFields(orgId: string) {
   return db
     .select({
