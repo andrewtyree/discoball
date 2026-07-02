@@ -156,9 +156,11 @@ export async function getRecordDetail(orgId: string, id: string) {
 
 export type RecordDetail = NonNullable<Awaited<ReturnType<typeof getRecordDetail>>>;
 
-/** Options the create/edit form needs: record types, statuses, org members. */
+/** Options the create/edit form needs: record types, statuses, org members,
+ *  contacts, and every type's custom-field definitions (the form swaps the
+ *  visible set when the record type changes). */
 export async function getRecordFormOptions(orgId: string) {
-  const [recordTypes, statuses, members] = await Promise.all([
+  const [recordTypes, statuses, members, contacts, customFields] = await Promise.all([
     db
       .select({
         id: schema.recordTypes.id,
@@ -186,9 +188,30 @@ export async function getRecordFormOptions(orgId: string) {
       .innerJoin(schema.users, eq(schema.memberships.userId, schema.users.id))
       .where(eq(schema.memberships.orgId, orgId))
       .orderBy(asc(schema.users.name)),
+    db
+      .select({
+        id: schema.contacts.id,
+        displayName: schema.contacts.displayName,
+      })
+      .from(schema.contacts)
+      .where(and(eq(schema.contacts.orgId, orgId), eq(schema.contacts.isActive, true)))
+      .orderBy(asc(schema.contacts.displayName)),
+    db
+      .select({
+        id: schema.customFields.id,
+        key: schema.customFields.key,
+        label: schema.customFields.label,
+        fieldType: schema.customFields.fieldType,
+        options: schema.customFields.options,
+        required: schema.customFields.required,
+        recordTypeId: schema.customFields.recordTypeId,
+      })
+      .from(schema.customFields)
+      .where(eq(schema.customFields.orgId, orgId))
+      .orderBy(asc(schema.customFields.sortOrder), asc(schema.customFields.label)),
   ]);
 
-  return { recordTypes, statuses, members };
+  return { recordTypes, statuses, members, contacts, customFields };
 }
 
 export type RecordFormOptions = Awaited<ReturnType<typeof getRecordFormOptions>>;

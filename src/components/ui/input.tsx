@@ -10,6 +10,13 @@ export function Input({
   return <input className={cn(FIELD_CLASS, className)} {...props} />;
 }
 
+export function Textarea({
+  className,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={cn(FIELD_CLASS, "min-h-24", className)} {...props} />;
+}
+
 export function Select({
   className,
   ...props

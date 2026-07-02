@@ -98,6 +98,7 @@ export default async function RecordDetailPage({
                 assigneeId: record.assigneeId ?? "",
                 openedDate: ymd(record.openedDate),
                 dueDate: ymd(record.dueDate),
+                customValues: record.customValues,
               }}
             />
           </Card>

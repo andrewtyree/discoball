@@ -10,13 +10,20 @@
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db, schema } from "@/db";
 import { diffFields } from "@/lib/audit";
 import { requireSessionUser, type SessionUser } from "@/lib/auth";
 import { isStaleWrite } from "@/lib/records/concurrency";
+import {
+  CUSTOM_FIELD_PREFIX,
+  formatCustomValue,
+  parseCustomValues,
+  snapshotCustomValues,
+  type CustomFieldDef,
+} from "@/lib/records/custom-fields";
 import { assertCan } from "@/lib/rbac";
 import { ymd } from "@/lib/utils";
 
@@ -29,8 +36,9 @@ import { ymd } from "@/lib/utils";
  * resets uncontrolled form fields to their defaultValue after an action
  * completes, so the form re-renders these as the defaults — otherwise the
  * user's in-progress edits would be silently discarded on a failed save.
+ * Custom multi-select fields echo as arrays; everything else as strings.
  */
-export type RecordFormEcho = Record<string, string>;
+export type RecordFormEcho = Record<string, string | string[]>;
 
 export type RecordFormState =
   | { status: "idle" }
@@ -89,7 +97,62 @@ function echoValues(formData: FormData): RecordFormEcho {
     const v = formData.get(field);
     if (typeof v === "string") echo[field] = v;
   }
+  for (const key of new Set(formData.keys())) {
+    if (!key.startsWith(CUSTOM_FIELD_PREFIX)) continue;
+    const all = formData.getAll(key).filter((v): v is string => typeof v === "string");
+    echo[key] = all.length > 1 ? all : (all[0] ?? "");
+  }
   return echo;
+}
+
+/** One record type's field definitions, org-scoped. */
+async function customFieldDefs(orgId: string, recordTypeId: string): Promise<CustomFieldDef[]> {
+  return db
+    .select({
+      id: schema.customFields.id,
+      key: schema.customFields.key,
+      label: schema.customFields.label,
+      fieldType: schema.customFields.fieldType,
+      options: schema.customFields.options,
+      required: schema.customFields.required,
+      recordTypeId: schema.customFields.recordTypeId,
+    })
+    .from(schema.customFields)
+    .where(
+      and(
+        eq(schema.customFields.orgId, orgId),
+        eq(schema.customFields.recordTypeId, recordTypeId),
+      ),
+    );
+}
+
+/** USER/CONTACT custom values reference rows; make sure they're in the org. */
+async function validateCustomRefs(
+  orgId: string,
+  defs: CustomFieldDef[],
+  values: Record<string, unknown>,
+): Promise<string | null> {
+  for (const def of defs) {
+    const value = values[def.key];
+    if (typeof value !== "string" || value === "") continue;
+
+    if (def.fieldType === "USER") {
+      const [member] = await db
+        .select({ id: schema.memberships.id })
+        .from(schema.memberships)
+        .where(
+          and(eq(schema.memberships.userId, value), eq(schema.memberships.orgId, orgId)),
+        );
+      if (!member) return `${def.label}: that user is not a member of this organization.`;
+    } else if (def.fieldType === "CONTACT") {
+      const [contact] = await db
+        .select({ id: schema.contacts.id })
+        .from(schema.contacts)
+        .where(and(eq(schema.contacts.id, value), eq(schema.contacts.orgId, orgId)));
+      if (!contact) return `${def.label}: unknown contact.`;
+    }
+  }
+  return null;
 }
 
 function parseRecordInput(formData: FormData): RecordInput | { error: string } {
@@ -200,19 +263,50 @@ async function conflictSnapshot(orgId: string, id: string) {
     with: { recordType: true, status: true, assignee: true },
   });
   if (!fresh) return null;
-  return {
-    freshVersion: fresh.version,
-    theirs: [
-      { label: "Title", value: fresh.title },
-      { label: "Reference", value: fresh.reference ?? "—" },
-      { label: "Subject", value: fresh.subjectName ?? "—" },
-      { label: "Type", value: fresh.recordType?.name ?? "—" },
-      { label: "Status", value: fresh.status?.name ?? "—" },
-      { label: "Assignee", value: fresh.assignee?.name ?? fresh.assignee?.email ?? "—" },
-      { label: "Opened", value: fresh.openedDate ? ymd(fresh.openedDate) : "—" },
-      { label: "Due", value: fresh.dueDate ? ymd(fresh.dueDate) : "—" },
-    ],
-  };
+
+  const theirs = [
+    { label: "Title", value: fresh.title },
+    { label: "Reference", value: fresh.reference ?? "—" },
+    { label: "Subject", value: fresh.subjectName ?? "—" },
+    { label: "Type", value: fresh.recordType?.name ?? "—" },
+    { label: "Status", value: fresh.status?.name ?? "—" },
+    { label: "Assignee", value: fresh.assignee?.name ?? fresh.assignee?.email ?? "—" },
+    { label: "Opened", value: fresh.openedDate ? ymd(fresh.openedDate) : "—" },
+    { label: "Due", value: fresh.dueDate ? ymd(fresh.dueDate) : "—" },
+  ];
+
+  // Custom fields of the fresh row's type, with USER/CONTACT ids resolved to
+  // names so the banner is readable.
+  const defs = await customFieldDefs(orgId, fresh.recordTypeId);
+  if (defs.length > 0) {
+    const refIds = defs
+      .filter((d) => d.fieldType === "USER" || d.fieldType === "CONTACT")
+      .map((d) => fresh.customValues[d.key])
+      .filter((v): v is string => typeof v === "string" && v !== "");
+    const names = new Map<string, string>();
+    if (refIds.length > 0) {
+      const [userRows, contactRows] = await Promise.all([
+        db
+          .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+          .from(schema.users)
+          .where(inArray(schema.users.id, refIds)),
+        db
+          .select({ id: schema.contacts.id, displayName: schema.contacts.displayName })
+          .from(schema.contacts)
+          .where(inArray(schema.contacts.id, refIds)),
+      ]);
+      for (const u of userRows) names.set(u.id, u.name ?? u.email);
+      for (const c of contactRows) names.set(c.id, c.displayName);
+    }
+    for (const def of defs) {
+      theirs.push({
+        label: def.label,
+        value: formatCustomValue(def, fresh.customValues[def.key], (rid) => names.get(rid)),
+      });
+    }
+  }
+
+  return { freshVersion: fresh.version, theirs };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -234,6 +328,12 @@ export async function createRecord(
   const refError = await validateOrgRefs(user.orgId, input);
   if (refError) return { status: "error", message: refError, values: echo };
 
+  const defs = await customFieldDefs(user.orgId, input.recordTypeId);
+  const custom = parseCustomValues(defs, formData);
+  if (!custom.ok) return { status: "error", message: custom.error, values: echo };
+  const customRefError = await validateCustomRefs(user.orgId, defs, custom.values);
+  if (customRefError) return { status: "error", message: customRefError, values: echo };
+
   let createdId: string;
   try {
     createdId = await db.transaction(async (tx) => {
@@ -242,6 +342,7 @@ export async function createRecord(
         .values({
           orgId: user.orgId,
           ...input,
+          customValues: custom.values,
           createdById: user.id,
           updatedById: user.id,
         })
@@ -253,7 +354,7 @@ export async function createRecord(
         entity: "record",
         entityId: created.id,
         action: "create",
-        diff: diffFields({}, snapshot(input)),
+        diff: diffFields({}, { ...snapshot(input), ...snapshotCustomValues(custom.values) }),
       });
 
       return created.id;
@@ -292,6 +393,12 @@ export async function updateRecord(
   const refError = await validateOrgRefs(user.orgId, input);
   if (refError) return { status: "error", message: refError, values: echo };
 
+  const defs = await customFieldDefs(user.orgId, input.recordTypeId);
+  const custom = parseCustomValues(defs, formData);
+  if (!custom.ok) return { status: "error", message: custom.error, values: echo };
+  const customRefError = await validateCustomRefs(user.orgId, defs, custom.values);
+  if (customRefError) return { status: "error", message: customRefError, values: echo };
+
   const before = await db.query.records.findFirst({
     where: and(eq(schema.records.id, id), eq(schema.records.orgId, user.orgId)),
   });
@@ -311,6 +418,7 @@ export async function updateRecord(
         .update(schema.records)
         .set({
           ...input,
+          customValues: custom.values,
           version: sql`${schema.records.version} + 1`,
           updatedById: user.id,
           updatedAt: new Date(),
@@ -325,7 +433,10 @@ export async function updateRecord(
         .returning({ id: schema.records.id });
       if (rows.length === 0) return false;
 
-      const diff = diffFields(snapshot(before), snapshot(input));
+      const diff = diffFields(
+        { ...snapshot(before), ...snapshotCustomValues(before.customValues) },
+        { ...snapshot(input), ...snapshotCustomValues(custom.values) },
+      );
       await tx.insert(schema.auditLog).values({
         orgId: user.orgId,
         userId: user.id,
