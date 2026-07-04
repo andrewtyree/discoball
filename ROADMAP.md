@@ -197,7 +197,7 @@ absolute numbers.
   custom fields editable per record type; audit timeline visible per record.
 - **Effort:** ~2 weeks.
 
-### Phase 3 — Templates & batch generation *(headline feature)*
+### Phase 3 — Templates & batch generation *(headline feature — done)*
 
 - **Scope:** upload `.docx`; auto-discover `{placeholders}`; bind each to a data
   field/custom key in the UI; single-record preview; batch generate across a
@@ -209,7 +209,7 @@ absolute numbers.
   placeholder is reported, not silently mis-filled.
 - **Effort:** ~2–3 weeks.
 
-### Phase 4 — Calendar & workload
+### Phase 4 — Calendar & workload *(done)*
 
 - **Scope:** FullCalendar month/week/day; record due dates + `events`; an
   assignee filter; a **daily workload heatmap** (sum of estimated effort per day)
