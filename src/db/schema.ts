@@ -459,23 +459,29 @@ export const generationRuns = pgTable("generation_runs", {
 
 /** Calendar events tied to records and deadlines. Drives the workload view
  *  that makes heavy days easy to spot (see src/lib/calendar/workload.ts). */
-export const events = pgTable("events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  recordId: uuid("record_id").references(() => records.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  type: eventTypeEnum("type").notNull().default("DEADLINE"),
-  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
-  endAt: timestamp("end_at", { withTimezone: true }),
-  allDay: boolean("all_day").notNull().default(false),
-  assigneeId: uuid("assignee_id").references(() => users.id),
-  /** Estimated effort in minutes — summed per day to flag heavy workloads. */
-  estimatedMinutes: integer("estimated_minutes"),
-  isDone: boolean("is_done").notNull().default(false),
-  notes: text("notes"),
-});
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id").references(() => records.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    type: eventTypeEnum("type").notNull().default("DEADLINE"),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }),
+    allDay: boolean("all_day").notNull().default(false),
+    assigneeId: uuid("assignee_id").references(() => users.id),
+    /** Estimated effort in minutes — summed per day to flag heavy workloads. */
+    estimatedMinutes: integer("estimated_minutes"),
+    isDone: boolean("is_done").notNull().default(false),
+    notes: text("notes"),
+  },
+  // The calendar reads one visible date window per org — range scans on
+  // (org_id, start_at) keep month/week fetches indexed.
+  (t) => [index("events_org_start_idx").on(t.orgId, t.startAt)],
+);
 
 /* -------------------------------------------------------------------------- */
 /* Audit & saved views                                                         */

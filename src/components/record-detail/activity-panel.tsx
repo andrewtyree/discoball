@@ -18,6 +18,11 @@ const ACTION_LABELS: Record<string, string> = {
   contact_unlink: "unlinked a contact",
   code_add: "added a code",
   code_remove: "removed a code",
+  event_add: "added an event",
+  event_update: "updated an event",
+  event_reschedule: "rescheduled an event",
+  event_delete: "removed an event",
+  reschedule: "rescheduled the due date",
 };
 
 /** Deterministic server-rendered timestamp (no locale surprises). */
@@ -33,8 +38,10 @@ function fmtValue(v: unknown): string {
   return s.length > 60 ? `${s.slice(0, 57)}…` : s;
 }
 
-function isFromTo(v: unknown): v is { from: unknown; to: unknown } {
-  return typeof v === "object" && v !== null && "from" in v && "to" in v;
+function isFromTo(v: unknown): v is { from?: unknown; to?: unknown } {
+  // JSONB storage drops `undefined` sides (e.g. `from` on a create diff, `to`
+  // on a cleared field), so a one-sided object is still a from→to entry.
+  return typeof v === "object" && v !== null && ("from" in v || "to" in v);
 }
 
 const MAX_DIFF_LINES = 8;
@@ -62,6 +69,28 @@ function diffLines(action: string, diff: Record<string, unknown>): string[] {
   }
   if (action.startsWith("code_")) {
     return [`code: ${fmtValue(diff.code)}${diff.label ? ` (${fmtValue(diff.label)})` : ""}`];
+  }
+  if (action.startsWith("event_")) {
+    // The title is a plain string on update/reschedule/delete but a {from,to}
+    // diff entry on add (diffFields against an empty snapshot); the eventId
+    // key is an internal pointer, not something to show.
+    const title = diff.title;
+    const lines = [`event: ${fmtValue(isFromTo(title) ? title.to : title)}`];
+    for (const [key, value] of Object.entries(diff)) {
+      // eventId/recordId are internal pointers; the entry already sits on the
+      // record's own timeline and the title line names the event.
+      if (key === "eventId" || key === "recordId" || key === "title") continue;
+      if (isFromTo(value)) {
+        lines.push(
+          action === "event_add"
+            ? `${key}: ${fmtValue(value.to)}`
+            : `${key}: ${fmtValue(value.from)} → ${fmtValue(value.to)}`,
+        );
+      } else {
+        lines.push(`${key}: ${fmtValue(value)}`);
+      }
+    }
+    return lines;
   }
 
   // create/update: field-level {from, to} entries, custom fields namespaced.

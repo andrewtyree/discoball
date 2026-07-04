@@ -47,7 +47,9 @@ export function diffFields(
   const diff: Record<string, { from: unknown; to: unknown }> = {};
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
-      diff[key] = { from: before[key], to: after[key] };
+      // Coerce undefined to null: JSONB serialization silently drops undefined
+      // sides, leaving one-sided objects that break from→to rendering.
+      diff[key] = { from: before[key] ?? null, to: after[key] ?? null };
     }
   }
   return diff;

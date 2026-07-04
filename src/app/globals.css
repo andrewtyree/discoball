@@ -30,3 +30,78 @@ body {
   color: var(--foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
 }
+
+/* --------------------------------------------------------------------------
+   Calendar (Phase 4)
+
+   FullCalendar v6 injects its own stylesheet at runtime; these overrides remap
+   its CSS variables onto the app's design tokens and style the two event
+   flavors (real events vs record due dates) plus the workload heatmap.
+   -------------------------------------------------------------------------- */
+.calendar-shell {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--background);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-small-font-size: 0.75rem;
+  --fc-today-bg-color: color-mix(in srgb, var(--primary) 7%, transparent);
+  --fc-now-indicator-color: var(--primary);
+  --fc-highlight-color: color-mix(in srgb, var(--primary) 12%, transparent);
+  --fc-event-border-color: transparent;
+  font-size: 0.875rem;
+}
+.calendar-shell .fc a {
+  color: inherit;
+}
+.calendar-shell .fc .fc-col-header-cell-cushion,
+.calendar-shell .fc .fc-daygrid-day-number {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.calendar-shell .fc .fc-event {
+  border-radius: calc(var(--radius) - 4px);
+  font-size: 0.75rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+/* Real events — the app's primary color. */
+.calendar-shell .fc .cal-item-event {
+  background-color: var(--primary);
+  border: 1px solid transparent;
+  color: var(--primary-foreground);
+}
+/* Record due dates — visually distinct: amber outline chips, not solid fills. */
+.calendar-shell .fc .cal-item-deadline {
+  background-color: color-mix(in srgb, #f59e0b 16%, var(--background));
+  border: 1px solid color-mix(in srgb, #f59e0b 60%, transparent);
+  border-left-width: 3px;
+  color: var(--foreground);
+}
+/* Done items — muted and struck through. */
+.calendar-shell .fc .cal-item-done {
+  opacity: 0.5;
+}
+.calendar-shell .fc .cal-item-done .fc-event-title {
+  text-decoration: line-through;
+}
+
+/* Workload heatmap — subtle backgrounds, stronger as load climbs. The
+   `.fc td.load-*` variants out-specify FullCalendar's today highlight; the
+   bare classes also color the legend swatches. */
+.load-light,
+.calendar-shell .fc td.load-light {
+  background-color: color-mix(in srgb, #22c55e 8%, transparent);
+}
+.load-moderate,
+.calendar-shell .fc td.load-moderate {
+  background-color: color-mix(in srgb, #eab308 14%, transparent);
+}
+.load-heavy,
+.calendar-shell .fc td.load-heavy {
+  background-color: color-mix(in srgb, #f97316 22%, transparent);
+}
+.load-overloaded,
+.calendar-shell .fc td.load-overloaded {
+  background-color: color-mix(in srgb, #ef4444 28%, transparent);
+}
