@@ -150,6 +150,43 @@ export async function listRecords(
   return { rows, total, page, pageCount };
 }
 
+/** Export ceiling: one download serializes at most this many records. */
+export const EXPORT_RECORD_CAP = 10_000;
+
+/**
+ * Select records for CSV/JSON export — identical filter semantics to the
+ * records list (shared `filterConditions`), unpaginated, ordered stably.
+ * Callers pass `cap + 1` and treat an overflowing result as "too many".
+ */
+export async function listRecordsForExport(
+  orgId: string,
+  filter: RecordFilter,
+  limit: number,
+) {
+  return db
+    .select({
+      id: schema.records.id,
+      recordTypeId: schema.records.recordTypeId,
+      typeName: schema.recordTypes.name,
+      reference: schema.records.reference,
+      title: schema.records.title,
+      subjectName: schema.records.subjectName,
+      statusName: schema.statuses.name,
+      assigneeEmail: schema.users.email,
+      openedDate: schema.records.openedDate,
+      dueDate: schema.records.dueDate,
+      isArchived: schema.records.isArchived,
+      customValues: schema.records.customValues,
+    })
+    .from(schema.records)
+    .leftJoin(schema.statuses, eq(schema.records.statusId, schema.statuses.id))
+    .leftJoin(schema.recordTypes, eq(schema.records.recordTypeId, schema.recordTypes.id))
+    .leftJoin(schema.users, eq(schema.records.assigneeId, schema.users.id))
+    .where(and(...filterConditions(orgId, filter)))
+    .orderBy(asc(schema.records.reference), asc(schema.records.id))
+    .limit(limit);
+}
+
 /** One record with its type/status/assignee resolved, scoped to the org. */
 export async function getRecordDetail(orgId: string, id: string) {
   return db.query.records.findFirst({

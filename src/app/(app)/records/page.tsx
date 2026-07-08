@@ -56,6 +56,7 @@ export default async function RecordsPage({
   ]);
   const canWrite = can(user.role, "record:write");
   const currentParams = recordFilterToSearchParams({ ...filter, page: 1 }).toString();
+  const exportQuery = currentParams ? `${currentParams}&` : "";
 
   const hasActiveFilters =
     Boolean(
@@ -75,14 +76,28 @@ export default async function RecordsPage({
           title="Records"
           subtitle="Your configurable matters, files, or projects."
         />
-        {canWrite ? (
-          <Link
-            href="/records/new"
-            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)]"
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/records/export?${exportQuery}format=csv`}
+            className="inline-flex items-center justify-center rounded-[var(--radius)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
-            New record
-          </Link>
-        ) : null}
+            Export CSV
+          </a>
+          <a
+            href={`/api/records/export?${exportQuery}format=json`}
+            className="inline-flex items-center justify-center rounded-[var(--radius)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          >
+            Export JSON
+          </a>
+          {canWrite ? (
+            <Link
+              href="/records/new"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)]"
+            >
+              New record
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {total === 0 && !hasActiveFilters ? (
