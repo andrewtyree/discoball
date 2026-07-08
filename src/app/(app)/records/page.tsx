@@ -90,12 +90,20 @@ export default async function RecordsPage({
             Export JSON
           </a>
           {canWrite ? (
-            <Link
-              href="/records/new"
-              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)]"
-            >
-              New record
-            </Link>
+            <>
+              <Link
+                href="/records/import"
+                className="inline-flex items-center justify-center rounded-[var(--radius)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              >
+                Import CSV
+              </Link>
+              <Link
+                href="/records/new"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)]"
+              >
+                New record
+              </Link>
+            </>
           ) : null}
         </div>
       </div>

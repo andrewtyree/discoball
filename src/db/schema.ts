@@ -95,6 +95,17 @@ export const runStatusEnum = pgEnum("run_status", [
   "FAILED",
 ]);
 
+/** Lifecycle of a CSV import run: uploaded → mapped/validated → committed.
+ *  `MAPPED` is the persisted "awaiting commit decision" state the wizard
+ *  returns to between steps. */
+export const importStatusEnum = pgEnum("import_status", [
+  "UPLOADED",
+  "MAPPED",
+  "RUNNING",
+  "COMPLETED",
+  "FAILED",
+]);
+
 /** Calendar event type. Replaces scattered per-record date fields with
  *  first-class scheduling tied to records and deadlines. */
 export const eventTypeEnum = pgEnum("event_type", [
@@ -452,6 +463,51 @@ export const generationRuns = pgTable("generation_runs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });
+
+/* -------------------------------------------------------------------------- */
+/* CSV import                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** One CSV import run — the wizard's inter-step state and, once committed,
+ *  the permanent history of who imported what. The uploaded file lives in
+ *  object storage under `imports/<id>.csv`; `columnMapping` binds each CSV
+ *  header to a target path ("title", "status", "custom.<key>", "" = ignore). */
+export const importRuns = pgTable(
+  "import_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    /** Imports are single-type: custom fields hang off the record type. */
+    recordTypeId: uuid("record_type_id")
+      .notNull()
+      .references(() => recordTypes.id),
+    fileName: text("file_name").notNull(),
+    storageKey: text("storage_key").notNull(),
+    columnMapping: jsonb("column_mapping").$type<Record<string, string>>().default({}).notNull(),
+    status: importStatusEnum("status").notNull().default("UPLOADED"),
+    /** Data rows in the file (header excluded). */
+    rowCount: integer("row_count").notNull().default(0),
+    validCount: integer("valid_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    importedCount: integer("imported_count").notNull().default(0),
+    /** Whether the user chose to commit valid rows despite row errors. */
+    skipInvalid: boolean("skip_invalid").notNull().default(false),
+    /** First N row errors for display; `errorCount` holds the true total. */
+    errors: jsonb("errors")
+      .$type<{ row: number; column?: string; message: string }[]>()
+      .default([])
+      .notNull(),
+    /** Fatal run error (unreadable file, transaction failure…). */
+    error: text("error"),
+    createdById: uuid("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  // The import history list reads newest-first per org.
+  (t) => [index("import_runs_org_created_idx").on(t.orgId, t.createdAt)],
+);
 
 /* -------------------------------------------------------------------------- */
 /* Calendar / workload                                                         */

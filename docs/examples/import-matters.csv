@@ -1,0 +1,7 @@
+reference,title,subjectName,status,assignee,openedDate,dueDate
+IMP-0001,Records request — Harbor Board,"Reyes, Jordan",Intake,casey.editor@example.com,2026-06-01,2026-07-20
+IMP-0002,Vendor contract renewal,Acme Supply Co.,In Progress,blair.admin@example.com,2026-06-03,2026-08-01
+IMP-0003,Annual compliance filing,Northwind Ltd.,Awaiting Documents,casey.editor@example.com,2026-06-05,2026-07-31
+IMP-0004,Insurance claim follow-up,"Whitfield, Sam",Intake,,2026-06-08,2026-09-15
+IMP-0005,Bad date demo row,Delta Services,Intake,casey.editor@example.com,not-a-date,2026-08-15
+IMP-0001,Duplicate reference demo row,Echo Partners,Intake,,2026-06-10,2026-08-30
