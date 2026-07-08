@@ -106,6 +106,13 @@ export const importStatusEnum = pgEnum("import_status", [
   "FAILED",
 ]);
 
+/** Outcome of one outbound webhook delivery attempt. */
+export const deliveryStatusEnum = pgEnum("delivery_status", [
+  "PENDING",
+  "SUCCESS",
+  "FAILED",
+]);
+
 /** Calendar event type. Replaces scattered per-record date fields with
  *  first-class scheduling tied to records and deadlines. */
 export const eventTypeEnum = pgEnum("event_type", [
@@ -537,6 +544,53 @@ export const events = pgTable(
   // The calendar reads one visible date window per org — range scans on
   // (org_id, start_at) keep month/week fetches indexed.
   (t) => [index("events_org_start_idx").on(t.orgId, t.startAt)],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Outbound webhooks                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** An org's outbound webhook: a URL that receives signed JSON POSTs for the
+ *  record events it subscribes to (see src/lib/webhooks). */
+export const webhooks = pgTable("webhooks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  /** HMAC-SHA256 key for the X-Discoball-Signature header. Stored plaintext —
+   *  acceptable for the demo; production would envelope-encrypt (docs/ops.md). */
+  secret: text("secret").notNull(),
+  /** Subscribed events, e.g. ["record.created","record.imported"]. */
+  events: jsonb("events").$type<string[]>().default([]).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: uuid("created_by_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** One delivery attempt (or manual redelivery) of one event to one webhook —
+ *  the visible history that makes dispatch debuggable without a job queue. */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    webhookId: uuid("webhook_id")
+      .notNull()
+      .references(() => webhooks.id, { onDelete: "cascade" }),
+    event: text("event").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
+    attempt: integer("attempt").notNull().default(1),
+    status: deliveryStatusEnum("status").notNull().default("PENDING"),
+    responseStatus: integer("response_status"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  // The settings page reads recent deliveries newest-first per org.
+  (t) => [index("webhook_deliveries_org_created_idx").on(t.orgId, t.createdAt)],
 );
 
 /* -------------------------------------------------------------------------- */

@@ -24,6 +24,11 @@ const EDITORS = [
     title: "Codes",
     body: "A controlled vocabulary for labeling records.",
   },
+  {
+    href: "/settings/webhooks",
+    title: "Webhooks",
+    body: "POST signed JSON to your systems when records change.",
+  },
 ];
 
 const UPCOMING = [

@@ -10,6 +10,7 @@
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -26,6 +27,7 @@ import {
 } from "@/lib/records/custom-fields";
 import { assertCan } from "@/lib/rbac";
 import { ymd } from "@/lib/utils";
+import { emitRecordEvent } from "@/lib/webhooks/dispatch";
 
 /* -------------------------------------------------------------------------- */
 /* Form state (returned to useActionState in the record form)                  */
@@ -366,6 +368,17 @@ export async function createRecord(
     throw err;
   }
 
+  // Post-commit, post-response: after() runs once the redirect is sent, so
+  // slow webhook receivers never hold up the save.
+  const createdPayload = {
+    recordId: createdId,
+    title: input.title,
+    reference: input.reference,
+    recordTypeId: input.recordTypeId,
+    actor: user.email,
+  };
+  after(() => emitRecordEvent(user.orgId, "record.created", createdPayload));
+
   revalidatePath("/records");
   redirect(`/records/${createdId}?saved=1`);
 }
@@ -461,6 +474,14 @@ export async function updateRecord(
     throw err;
   }
 
+  const updatedPayload = {
+    recordId: id,
+    title: input.title,
+    reference: input.reference,
+    actor: user.email,
+  };
+  after(() => emitRecordEvent(user.orgId, "record.updated", updatedPayload));
+
   revalidatePath("/records");
   revalidatePath(`/records/${id}`);
   redirect(`/records/${id}?saved=1`);
@@ -483,7 +504,7 @@ async function setArchived(formData: FormData, archived: boolean): Promise<void>
       ? reasonRaw.trim().slice(0, 500)
       : null;
 
-  await db.transaction(async (tx) => {
+  const changed = await db.transaction(async (tx) => {
     const rows = await tx
       .update(schema.records)
       .set({
@@ -495,7 +516,7 @@ async function setArchived(formData: FormData, archived: boolean): Promise<void>
       })
       .where(and(eq(schema.records.id, id), eq(schema.records.orgId, user.orgId)))
       .returning({ id: schema.records.id });
-    if (rows.length === 0) return;
+    if (rows.length === 0) return false;
 
     await tx.insert(schema.auditLog).values({
       orgId: user.orgId,
@@ -505,7 +526,13 @@ async function setArchived(formData: FormData, archived: boolean): Promise<void>
       action: archived ? "archive" : "unarchive",
       diff: reason ? { reason } : null,
     });
+    return true;
   });
+
+  if (changed) {
+    const archivedPayload = { recordId: id, archived, actor: user.email };
+    after(() => emitRecordEvent(user.orgId, "record.archived", archivedPayload));
+  }
 
   revalidatePath("/records");
   revalidatePath(`/records/${id}`);

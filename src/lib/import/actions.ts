@@ -16,6 +16,7 @@
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -27,6 +28,7 @@ import { logger } from "@/lib/logger";
 import { snapshotCustomValues, type CustomFieldDef } from "@/lib/records/custom-fields";
 import { assertCan } from "@/lib/rbac";
 import { deleteObject, getObject, putObject } from "@/lib/storage";
+import { emitRecordEvent } from "@/lib/webhooks/dispatch";
 import { buildImportLookups, getImportRun, listCustomFieldDefs } from "./queries";
 import { columnMappingProblem, guessColumnMapping, importTargetsFor } from "./targets";
 import {
@@ -317,6 +319,7 @@ export async function commitImport(formData: FormData): Promise<void> {
     .map((r) => r.values)
     .filter((v): v is ImportRecordValues => v !== null);
 
+  const insertedIds: string[] = [];
   try {
     await db.transaction(async (tx) => {
       for (let offset = 0; offset < values.length; offset += INSERT_CHUNK) {
@@ -340,6 +343,7 @@ export async function commitImport(formData: FormData): Promise<void> {
             })),
           )
           .returning({ id: schema.records.id });
+        insertedIds.push(...inserted.map((r) => r.id));
 
         // Per-record `create` audit entries — imported records must have a
         // real activity timeline, exactly like form-created ones.
@@ -396,6 +400,19 @@ export async function commitImport(formData: FormData): Promise<void> {
     imported: values.length,
     skipped: validated.errorCount,
   });
+
+  // ONE batch event, not N record.created posts — a 5,000-row import must
+  // not turn into 5,000 outbound requests. Subscribers fetch details.
+  const importedPayload = {
+    importRunId: id,
+    recordTypeId: run.recordTypeId,
+    fileName: run.fileName,
+    recordCount: insertedIds.length,
+    recordIds: insertedIds.slice(0, 100),
+    truncated: insertedIds.length > 100,
+    actor: user.email,
+  };
+  after(() => emitRecordEvent(user.orgId, "record.imported", importedPayload));
 
   revalidatePath("/records");
   redirect(`${back}?done=1`);
