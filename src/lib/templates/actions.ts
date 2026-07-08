@@ -19,6 +19,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { diffFields, recordAudit } from "@/lib/audit";
 import { requireSessionUser, type SessionUser } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 import { assertCan } from "@/lib/rbac";
 import { deleteObject, putObject } from "@/lib/storage";
 import { discoverTemplatePlaceholders, InvalidTemplateError } from "./discover";
@@ -343,7 +344,11 @@ export async function deleteTemplate(formData: FormData): Promise<void> {
   try {
     await deleteObject(template.storageKey);
   } catch (err) {
-    console.error(`Template ${id} deleted but its file ${template.storageKey} was not:`, err);
+    logger.error("template deleted but its file was not", {
+      templateId: id,
+      storageKey: template.storageKey,
+      err,
+    });
   }
 
   revalidatePath("/templates");

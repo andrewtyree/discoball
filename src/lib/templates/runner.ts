@@ -20,6 +20,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { recordAudit } from "@/lib/audit";
 import { requireSessionUser } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 import {
   recordFilterFromSearchParams,
   recordFilterToSearchParams,
@@ -250,7 +251,7 @@ export async function runGeneration(formData: FormData): Promise<void> {
   } catch (err) {
     finalStatus = "FAILED";
     // The stored message is user-facing; keep the raw error in the log.
-    console.error(`Generation run ${run.id} failed:`, err);
+    logger.error("generation run failed", { runId: run.id, templateId, err });
     await db
       .update(schema.generationRuns)
       .set({
