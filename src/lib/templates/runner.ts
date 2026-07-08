@@ -21,6 +21,7 @@ import { db, schema } from "@/db";
 import { recordAudit } from "@/lib/audit";
 import { requireSessionUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   recordFilterFromSearchParams,
   recordFilterToSearchParams,
@@ -90,6 +91,10 @@ export async function runGeneration(formData: FormData): Promise<void> {
 
   if (!can(user.role, "generation:run")) {
     redirect(`/templates/${templateId}?error=forbidden`);
+  }
+
+  if (!rateLimit("generationRun", user.id).ok) {
+    redirect(`/templates/${templateId}?error=rate_limited`);
   }
 
   const modeParse = z.enum(["DOCX", "PDF", "ZIP"]).safeParse(formData.get("outputMode"));

@@ -20,8 +20,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { db, schema } from "@/db";
+import { logger } from "@/lib/logger";
 import { verifyPassword } from "@/lib/password";
+import { rateLimit } from "@/lib/rate-limit";
 import type { Role } from "@/lib/rbac";
+import { clientIpFrom } from "@/lib/request-ip";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -34,11 +37,27 @@ const providers: NextAuthConfig["providers"] = [
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
     },
-    async authorize(raw) {
+    async authorize(raw, request) {
       const parsed = credentialsSchema.safeParse(raw);
       if (!parsed.success) return null;
 
       const email = parsed.data.email.toLowerCase();
+
+      // Throttle BEFORE touching the database: 10 attempts/min per ip+email.
+      // Over-limit surfaces as the same generic "invalid credentials" the UI
+      // already shows — deliberately no oracle for attackers.
+      const ip = clientIpFrom(request.headers);
+      const limited = rateLimit("signin", `${ip}:${email}`);
+      if (!limited.ok) {
+        logger.warn("sign-in rate limited", {
+          module: "auth",
+          email,
+          ip,
+          retryAfterMs: limited.retryAfterMs,
+        });
+        return null;
+      }
+
       const user = await db.query.users.findFirst({
         where: eq(schema.users.email, email),
       });

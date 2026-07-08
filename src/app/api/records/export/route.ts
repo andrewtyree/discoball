@@ -19,6 +19,7 @@ import {
   exportRowsToCsv,
   type ExportRecordRow,
 } from "@/lib/export/columns";
+import { rateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { can } from "@/lib/rbac";
 import { recordFilterFromSearchParams } from "@/lib/records/filters";
 import { EXPORT_RECORD_CAP, listRecordsForExport } from "@/lib/records/queries";
@@ -31,6 +32,14 @@ export async function GET(req: Request) {
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   if (!can(user.role, "record:read")) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  const limited = rateLimit("export", user.id);
+  if (!limited.ok) {
+    return new NextResponse(rateLimitMessage(limited), {
+      status: 429,
+      headers: { "Retry-After": String(Math.ceil(limited.retryAfterMs / 1000)) },
+    });
   }
 
   const url = new URL(req.url);

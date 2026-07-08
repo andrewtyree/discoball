@@ -36,6 +36,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   inactive: "This template is inactive — activate it before generating documents.",
   has_runs:
     "This template has generation runs, so it can’t be deleted (run history is kept). Deactivate it instead to retire it.",
+  rate_limited: "Too many generation runs in the last hour — try again later.",
 };
 
 const RUN_STATUS_LABELS: Record<string, string> = {

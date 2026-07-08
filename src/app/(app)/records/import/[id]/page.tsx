@@ -31,6 +31,7 @@ const BANNER_ERRORS: Record<string, string> = {
   has_errors:
     "The file still has invalid rows. Fix them (or tick “skip invalid rows”) and try again.",
   failed: "The import failed — details below.",
+  rate_limited: "Too many imports in the last hour — try again later.",
 };
 
 function Banner({ error, detail, ok }: { error?: string; detail?: string; ok?: string }) {

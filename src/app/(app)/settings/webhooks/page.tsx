@@ -22,6 +22,7 @@ const ERRORS: Record<string, string> = {
   invalid: "Please check the values and try again.",
   url: "That webhook URL isn't allowed.",
   no_events: "Pick at least one event to subscribe to.",
+  rate_limited: "Too many webhook tests in the last hour — try again later.",
 };
 
 function Banner({ error, detail, ok, tested }: { error?: string; detail?: string; ok?: string; tested?: string }) {

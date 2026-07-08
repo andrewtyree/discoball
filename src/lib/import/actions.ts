@@ -25,6 +25,7 @@ import { diffFields, recordAudit } from "@/lib/audit";
 import { requireSessionUser, type SessionUser } from "@/lib/auth";
 import { parseCsv, CsvParseError } from "@/lib/csv";
 import { logger } from "@/lib/logger";
+import { rateLimit } from "@/lib/rate-limit";
 import { snapshotCustomValues, type CustomFieldDef } from "@/lib/records/custom-fields";
 import { assertCan } from "@/lib/rbac";
 import { deleteObject, getObject, putObject } from "@/lib/storage";
@@ -262,6 +263,9 @@ export async function commitImport(formData: FormData): Promise<void> {
   const skipInvalid = formData.get("skipInvalid") === "on";
 
   if (checkRole(user, "record:write")) redirect(`${back}?error=forbidden`);
+
+  const limited = rateLimit("importCommit", user.id);
+  if (!limited.ok) redirect(`${back}?error=rate_limited`);
 
   // Double-submit guard: only one commit wins the MAPPED → RUNNING flip.
   const claimed = await db

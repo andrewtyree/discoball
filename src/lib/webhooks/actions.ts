@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import { db, schema } from "@/db";
 import { requireSessionUser } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 import { can } from "@/lib/rbac";
 import { deliverWebhook, WEBHOOK_EVENTS, type WebhookEvent } from "./dispatch";
 import { getDeliveryWithWebhook, getWebhook } from "./queries";
@@ -131,6 +132,7 @@ export async function deleteWebhook(formData: FormData): Promise<void> {
 /** Fire a `ping` event at one webhook, inline, and show the outcome. */
 export async function sendTestEvent(formData: FormData): Promise<void> {
   const user = await requireWebhookUser();
+  if (!rateLimit("webhookTest", user.id).ok) redirect(`${PATH}?error=rate_limited`);
 
   const idParse = z.string().uuid().safeParse(formData.get("id"));
   if (!idParse.success) redirect(`${PATH}?error=invalid`);
@@ -162,6 +164,7 @@ export async function sendTestEvent(formData: FormData): Promise<void> {
 /** Re-send a failed delivery's exact payload, as a fresh attempt. */
 export async function redeliverWebhook(formData: FormData): Promise<void> {
   const user = await requireWebhookUser();
+  if (!rateLimit("webhookTest", user.id).ok) redirect(`${PATH}?error=rate_limited`);
 
   const idParse = z.string().uuid().safeParse(formData.get("deliveryId"));
   if (!idParse.success) redirect(`${PATH}?error=invalid`);
