@@ -145,3 +145,41 @@ now avoids a later toggle and keeps local setup a single `docker compose up -d`.
 **Consequences.** Local dev pulls the Gotenberg image (~hundreds of MB) and runs
 a second container. The render call is wired in Phase 3; until then the service
 idles.
+
+---
+
+## ADR-0008 — Phase 5 integration surface: in-process, visible, upgradeable
+
+**Status:** Accepted · **Date:** 2026-07 · **Refines:** ADR-0001
+
+**Context.** Phase 5 adds the outward-facing surface — CSV import/export,
+outbound webhooks, rate limiting, structured logging, backups. Each could be
+built on heavyweight infrastructure (a job queue for webhook delivery, Redis
+for rate limits, an ETL step for imports) or in-process. The app is a
+single-instance demo whose audience reads the code.
+
+**Decision.** Build each feature in-process with the seam for the production
+upgrade explicit and documented (docs/ops.md):
+
+- **Webhook dispatch** runs post-response via `next/server after()`, records
+  every attempt in `webhook_deliveries`, and retries only manually
+  (Redeliver button). *Upgrade path:* transactional outbox + queue worker.
+- **Rate limiting** is an in-memory sliding window keyed per bucket, behind a
+  Redis-shaped `check(key)` contract. *Upgrade path:* swap the store.
+- **Import** validates whole files with the same pure validators as the
+  record form and commits all-or-nothing in one transaction, capped at 5,000
+  rows. *Upgrade path:* background job + progress for bigger files.
+- **Logging** is line-JSON on stdout/stderr; error reporting is the
+  `instrumentation.ts onRequestError` hook. *Upgrade path:* one-line Sentry
+  swap-in.
+
+**Why.** At demo scale, infrastructure would be indirection: harder to run
+(`docker compose` stays two services), harder to read, no more correct. The
+engineering signal worth showing is knowing where the seams are — visible
+delivery history instead of silent retries, a documented restore drill
+instead of an untested dump.
+
+**Consequences.** Rate-limit counters reset on restart and don't share across
+instances; a webhook receiver that's down misses events unless redelivered
+manually; imports block the committing request for their duration. All are
+acceptable single-instance trade-offs, and each has a named upgrade path.

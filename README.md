@@ -142,6 +142,7 @@ discoball/
 
 - [ROADMAP.md](ROADMAP.md) — product vision, target design, phased plan.
 - [docs/decisions.md](docs/decisions.md) — architectural decision records.
+- [docs/ops.md](docs/ops.md) — backup/restore, webhooks, rate limits, logging.
 - [docs/branding.md](docs/branding.md) — name & logo concept.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup & conventions.
 

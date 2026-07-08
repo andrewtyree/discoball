@@ -42,6 +42,9 @@ yarn-error.log*
 /uploads/
 data/uploads/
 
+# Database dumps (npm run db:backup)
+/backups/
+
 # Editor / OS
 .DS_Store
 Thumbs.db

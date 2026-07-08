@@ -23,7 +23,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
-    "db:seed:bulk": "tsx src/db/seed-bulk.ts"
+    "db:seed:bulk": "tsx src/db/seed-bulk.ts",
+    "db:backup": "node scripts/db-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
