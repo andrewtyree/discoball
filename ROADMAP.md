@@ -219,12 +219,13 @@ absolute numbers.
   visually flagged; dragging an event updates the underlying record/due date.
 - **Effort:** ~1.5–2 weeks.
 
-### Phase 5 — Integrations, import/export, backups & hardening
+### Phase 5 — Integrations, import/export, backups & hardening *(done)*
 
 - **Scope:** generic CSV import (maps columns → fields); optional outbound
   webhook on record events; CSV/JSON export; documented backup/restore; rate
   limiting; structured logging; error reporting.
-- **Deliverables:** import wizard, export buttons, webhook settings, ops docs.
+- **Deliverables:** import wizard, export buttons, webhook settings, ops docs
+  ([`docs/ops.md`](docs/ops.md)).
 - **Acceptance:** import a fictional CSV to create records; export round-trips;
   a scheduled backup is documented and demonstrated; a webhook fires on create.
 - **Effort:** ~2 weeks.
